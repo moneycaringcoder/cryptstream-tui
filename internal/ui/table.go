@@ -225,7 +225,7 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 	if searchQuery != "" {
 		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
 	}
-	left := fmt.Sprintf(" q quit  j/k scroll  tab sort  s star  f filter  / search  c config  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
+	left := fmt.Sprintf(" ? help  / search  c config  q quit  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
 	right := fmt.Sprintf("%s%s  %s %s ", btc, now, dot, status)
 
 	gap := termWidth - len(left) - len(right)

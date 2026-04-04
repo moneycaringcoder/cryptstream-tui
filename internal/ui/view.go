@@ -10,6 +10,10 @@ func (m Model) View() string {
 		return ""
 	}
 
+	if m.showHelp {
+		return m.renderHelpView()
+	}
+
 	if m.configUI.active {
 		return m.renderConfigView()
 	}

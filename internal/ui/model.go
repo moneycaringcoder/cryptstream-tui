@@ -61,6 +61,7 @@ type Model struct {
 	searching    bool       // search input mode active
 	searchQuery  string     // current search text
 	configUI     configState
+	showHelp     bool
 }
 
 // parseSortCol converts a config string to a SortCol.

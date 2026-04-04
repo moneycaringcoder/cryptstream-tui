@@ -60,6 +60,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Help screen
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc", "q":
+				m.showHelp = false
+			}
+			return m, nil
+		}
+
 		// Config editor handles its own keys when open.
 		if m.configUI.active {
 			return m.updateConfig(msg)
@@ -135,6 +144,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchQuery = ""
 		case "c":
 			m.configUI = configState{active: true}
+		case "?":
+			m.showHelp = true
 		case "esc":
 			// Clear active search filter
 			if m.searchQuery != "" {
