@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/binance"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
 func TestFetchInitial(t *testing.T) {
@@ -43,4 +47,49 @@ func TestFetchInitial(t *testing.T) {
 	if result[0].Symbol != "BTCUSDT" {
 		t.Errorf("expected BTCUSDT first, got %s", result[0].Symbol)
 	}
+}
+
+func TestStreamSendsUSDTTickers(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		msg := binance.WsMessage{
+			Stream: "!ticker@arr",
+			Data: []binance.RawTicker{
+				{Symbol: "BTCUSDT", LastPrice: "67000", PriceChangePercent: "1.5",
+					QuoteVolume: "5000000000", HighPrice: "68000", LowPrice: "66000",
+					BidPrice: "66999", AskPrice: "67001"},
+				{Symbol: "ETHBTC", LastPrice: "0.05", PriceChangePercent: "-0.1",
+					QuoteVolume: "100000", HighPrice: "0.051", LowPrice: "0.049",
+					BidPrice: "0.05", AskPrice: "0.051"},
+			},
+		}
+		b, _ := json.Marshal(msg)
+		conn.WriteMessage(websocket.TextMessage, b)
+		time.Sleep(200 * time.Millisecond) // keep connection open long enough for client to read
+	}))
+	defer srv.Close()
+
+	wsAddr := "ws" + strings.TrimPrefix(srv.URL, "http")
+	ch := make(chan ticker.Ticker, 10)
+	done := make(chan struct{})
+
+	go func() {
+		binance.Stream(wsAddr, ch, done)
+	}()
+
+	select {
+	case tk := <-ch:
+		if tk.Symbol != "BTCUSDT" {
+			t.Errorf("expected BTCUSDT, got %s", tk.Symbol)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("timeout waiting for ticker")
+	}
+	close(done)
 }

@@ -3,9 +3,12 @@ package binance
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -50,4 +53,76 @@ func FetchInitial(url string) ([]ticker.Ticker, error) {
 	})
 
 	return tickers, nil
+}
+
+// Stream connects to the Binance all-market WebSocket stream and sends
+// USDT ticker updates to ch. It reconnects with exponential backoff on
+// disconnect. Send on done to stop.
+func Stream(url string, ch chan<- ticker.Ticker, done <-chan struct{}) {
+	backoff := time.Second
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+
+		if err := streamOnce(url, ch, done); err != nil {
+			select {
+			case <-done:
+				return
+			case <-time.After(backoff):
+				backoff = time.Duration(math.Min(float64(backoff*2), float64(30*time.Second)))
+			}
+		} else {
+			return
+		}
+	}
+}
+
+func streamOnce(url string, ch chan<- ticker.Ticker, done <-chan struct{}) error {
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		return fmt.Errorf("ws dial: %w", err)
+	}
+	defer conn.Close()
+
+	// Close the connection when done is signalled so ReadMessage unblocks immediately.
+	go func() {
+		<-done
+		conn.Close()
+	}()
+
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			// Check if we stopped intentionally
+			select {
+			case <-done:
+				return nil
+			default:
+				return fmt.Errorf("ws read: %w", err)
+			}
+		}
+
+		var envelope WsMessage
+		if err := json.Unmarshal(msg, &envelope); err != nil {
+			continue
+		}
+
+		for _, raw := range envelope.Data {
+			t, err := raw.ToTicker()
+			if err != nil {
+				continue
+			}
+			if !IsUSDTPair(t) {
+				continue
+			}
+			select {
+			case ch <- t:
+			case <-done:
+				return nil
+			}
+		}
+	}
 }
