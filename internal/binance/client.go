@@ -15,8 +15,8 @@ import (
 const (
 	// RestURL is the Binance 24hr ticker REST endpoint.
 	RestURL = "https://api.binance.com/api/v3/ticker/24hr"
-	// WsURL is the Binance all-market ticker WebSocket stream.
-	WsURL = "wss://stream.binance.com/stream?streams=!ticker@arr"
+	// WsURL is the Binance all-market mini-ticker WebSocket stream.
+	WsURL = "wss://stream.binance.com:9443/ws/!miniTicker@arr"
 )
 
 // FetchInitial calls the Binance REST 24hr ticker endpoint, filters to USDT
@@ -107,12 +107,12 @@ func streamOnce(url string, ch chan<- ticker.Ticker, done <-chan struct{}) error
 			}
 		}
 
-		var envelope WsMessage
-		if err := json.Unmarshal(msg, &envelope); err != nil {
+		var raws []WsRawTicker
+		if err := json.Unmarshal(msg, &raws); err != nil {
 			continue
 		}
 
-		for _, raw := range envelope.Data {
+		for _, raw := range raws {
 			t, err := raw.ToTicker()
 			if err != nil {
 				continue

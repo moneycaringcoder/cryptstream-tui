@@ -58,18 +58,14 @@ func TestStreamSendsUSDTTickers(t *testing.T) {
 		}
 		defer conn.Close()
 
-		msg := binance.WsMessage{
-			Stream: "!ticker@arr",
-			Data: []binance.RawTicker{
-				{Symbol: "BTCUSDT", LastPrice: "67000", PriceChangePercent: "1.5",
-					QuoteVolume: "5000000000", HighPrice: "68000", LowPrice: "66000",
-					BidPrice: "66999", AskPrice: "67001"},
-				{Symbol: "ETHBTC", LastPrice: "0.05", PriceChangePercent: "-0.1",
-					QuoteVolume: "100000", HighPrice: "0.051", LowPrice: "0.049",
-					BidPrice: "0.05", AskPrice: "0.051"},
-			},
+		// Mini ticker array — matches !miniTicker@arr format.
+		tickers := []binance.WsRawTicker{
+			{Symbol: "BTCUSDT", LastPrice: "67000", OpenPrice: "66000",
+				HighPrice: "68000", LowPrice: "65000", QuoteVol: "5000000000"},
+			{Symbol: "ETHBTC", LastPrice: "0.05", OpenPrice: "0.051",
+				HighPrice: "0.052", LowPrice: "0.049", QuoteVol: "100000"},
 		}
-		b, _ := json.Marshal(msg)
+		b, _ := json.Marshal(tickers)
 		conn.WriteMessage(websocket.TextMessage, b)
 		time.Sleep(200 * time.Millisecond) // keep connection open long enough for client to read
 	}))

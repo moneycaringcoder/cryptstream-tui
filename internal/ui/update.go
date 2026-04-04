@@ -26,6 +26,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickerMsg:
 		t := ticker.Ticker(msg)
 		t.FlashUntil = time.Now().Add(300 * time.Millisecond)
+		// Mini ticker lacks bid/ask — preserve from existing data.
+		if prev, ok := m.tickers[t.Symbol]; ok {
+			if t.BidPrice == 0 {
+				t.BidPrice = prev.BidPrice
+			}
+			if t.AskPrice == 0 {
+				t.AskPrice = prev.AskPrice
+			}
+		}
 		m.tickers[t.Symbol] = t
 		m.rebuildSorted()
 		return m, nil
