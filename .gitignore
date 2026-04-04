@@ -1,0 +1,22 @@
+# Binaries
+cryptstream
+cryptstream.exe
+dist/
+
+# Go
+vendor/
+*.test
+*.out
+coverage.html
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Internal docs / specs / plans
+docs/
