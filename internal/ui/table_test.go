@@ -9,33 +9,15 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ui"
 )
 
-func TestColWidths(t *testing.T) {
-	widths := ui.ColWidths(120)
-	total := 0
-	for _, w := range widths {
-		total += w
-	}
-	if total > 120 {
-		t.Errorf("total col widths %d exceed terminal width 120", total)
-	}
-	if len(widths) != 9 {
-		t.Errorf("expected 9 column widths, got %d", len(widths))
-	}
-}
-
 func TestRenderRowContainsSymbol(t *testing.T) {
 	tk := ticker.Ticker{
 		Symbol:             "BTCUSDT",
 		LastPrice:          67432.10,
 		PriceChangePercent: 2.41,
 		QuoteVolume:        4_200_000_000,
-		HighPrice:          68100,
-		LowPrice:           65900,
-		BidPrice:           67431,
-		AskPrice:           67433,
 		FlashUntil:         time.Time{}, // no flash
 	}
-	row := ui.RenderRow(1, tk, ui.ColWidths(120))
+	row := ui.RenderRow(1, tk, 120, false, nil)
 	if !strings.Contains(row, "BTC") {
 		t.Errorf("row should contain BTC symbol, got: %s", row)
 	}
@@ -45,18 +27,38 @@ func TestRenderRowFlash(t *testing.T) {
 	base := ticker.Ticker{
 		Symbol:    "BTCUSDT",
 		LastPrice: 67432.10,
+		Flash:     ticker.FlashPositive,
 	}
 
 	base.FlashUntil = time.Time{} // no flash
-	noFlash := ui.RenderRow(1, base, ui.ColWidths(120))
+	noFlash := ui.RenderRow(1, base, 120, false, nil)
 
 	base.FlashUntil = time.Now().Add(1 * time.Second) // active flash
-	withFlash := ui.RenderRow(1, base, ui.ColWidths(120))
+	withFlash := ui.RenderRow(1, base, 120, false, nil)
 
 	if !strings.Contains(withFlash, "BTC") {
 		t.Errorf("flash row should contain BTC symbol, got: %s", withFlash)
 	}
 	if noFlash == withFlash {
 		t.Error("flash row and non-flash row should differ (flash style not applied)")
+	}
+}
+
+func TestRenderRowCursorHighlight(t *testing.T) {
+	tk := ticker.Ticker{Symbol: "ETHUSDT", LastPrice: 3500}
+	normal := ui.RenderRow(1, tk, 120, false, nil)
+	cursor := ui.RenderRow(1, tk, 120, true, nil)
+	if normal == cursor {
+		t.Error("cursor row should differ from normal row")
+	}
+}
+
+func TestRenderSparklineInRow(t *testing.T) {
+	tk := ticker.Ticker{Symbol: "BTCUSDT", LastPrice: 67500, QuoteVolume: 1e9}
+	history := []float64{67000, 67100, 67200, 67300, 67400, 67500}
+	row := ui.RenderRow(1, tk, 120, false, history)
+	// Sparkline uses block chars — check at least one is present
+	if !strings.ContainsAny(row, "▁▂▃▄▅▆▇█") {
+		t.Errorf("expected sparkline characters in row, got: %s", row)
 	}
 }

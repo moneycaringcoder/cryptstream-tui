@@ -14,10 +14,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.termW = msg.Width
 		m.termH = msg.Height
-		m.visibleRows = msg.Height - 4 // header + separator + footer + 1 padding
+		m.visibleRows = msg.Height - 4 // header + separator + footer separator + footer
 		if m.visibleRows < 0 {
 			m.visibleRows = 0
 		}
+		m.clampCursor()
 		return m, nil
 
 	case tickMsg:
@@ -37,15 +38,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				t.Flash = ticker.FlashNeutral
 			}
-			// Mini ticker lacks bid/ask — preserve from existing data.
-			if t.BidPrice == 0 {
-				t.BidPrice = prev.BidPrice
-			}
-			if t.AskPrice == 0 {
-				t.AskPrice = prev.AskPrice
-			}
 		}
 		m.tickers[t.Symbol] = t
+
+		// Track price history for sparklines.
+		h := m.priceHistory[t.Symbol]
+		h = append(h, t.LastPrice)
+		if len(h) > maxHistory {
+			h = h[len(h)-maxHistory:]
+		}
+		m.priceHistory[t.Symbol] = h
+
 		m.rebuildSorted()
 		return m, nil
 
@@ -54,8 +57,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "j", "down":
+			m.cursor++
+			m.clampCursor()
+		case "k", "up":
+			m.cursor--
+			m.clampCursor()
+		case "g", "home":
+			m.cursor = 0
+			m.clampCursor()
+		case "G", "end":
+			m.cursor = len(m.sorted) - 1
+			m.clampCursor()
+		case "tab":
+			m.sortCol = (m.sortCol + 1) % sortColCount
+			m.rebuildSorted()
+			m.clampCursor()
+		case "shift+tab":
+			m.sortCol = (m.sortCol - 1 + sortColCount) % sortColCount
+			m.rebuildSorted()
+			m.clampCursor()
 		}
 	}
 

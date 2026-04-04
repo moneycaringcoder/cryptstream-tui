@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -9,29 +10,96 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
-// colCount is the number of data columns.
-const colCount = 9
+// column defines a table column with its properties.
+type column struct {
+	name      string
+	minWidth  int  // below this terminal width, hide the column
+	rightAlign bool
+}
 
-// columnHeaders are displayed at the top of the table.
-var columnHeaders = []string{"#", "SYMBOL", "PRICE", "CHANGE", "VOLUME", "HIGH", "LOW", "BID", "ASK"}
+// columns defines all columns in display order.
+// minWidth=0 means always visible.
+var columns = []column{
+	{name: "#", minWidth: 0, rightAlign: true},
+	{name: "SYMBOL", minWidth: 0, rightAlign: false},
+	{name: "PRICE", minWidth: 0, rightAlign: true},
+	{name: "CHANGE", minWidth: 0, rightAlign: true},
+	{name: "TREND", minWidth: 70, rightAlign: false},
+	{name: "VOLUME", minWidth: 0, rightAlign: true},
+}
 
-// ColWidths returns column widths that fit within termWidth.
-// Proportions are tuned for readability at common terminal widths.
-func ColWidths(termWidth int) []int {
-	// proportions out of 100
-	props := []int{4, 8, 12, 9, 9, 11, 11, 11, 11}
-	widths := make([]int, colCount)
-	for i, p := range props {
-		widths[i] = termWidth * p / 100
+// proportions out of 100 for each column.
+var colProps = []int{5, 14, 22, 12, 25, 16}
+
+// visibleColumns returns the indices of columns that fit at the given terminal width.
+func visibleColumns(termWidth int) []int {
+	var vis []int
+	for i, c := range columns {
+		if termWidth >= c.minWidth {
+			vis = append(vis, i)
+		}
+	}
+	return vis
+}
+
+// colWidths computes pixel widths for visible columns, distributing space proportionally.
+func colWidths(termWidth int, vis []int) []int {
+	totalProp := 0
+	for _, i := range vis {
+		totalProp += colProps[i]
+	}
+	widths := make([]int, len(vis))
+	for j, i := range vis {
+		widths[j] = termWidth * colProps[i] / totalProp
 	}
 	return widths
 }
 
-// RenderHeader returns the column header row as a string.
-func RenderHeader(widths []int) string {
+// sortIndicator returns ▼ or ▲ if this column is the active sort, else "".
+func sortIndicator(colIdx int, sortCol SortCol, sortAsc bool) string {
+	var match SortCol
+	switch colIdx {
+	case 2:
+		match = SortPrice
+	case 3:
+		match = SortChange
+	case 5:
+		match = SortVolume
+	default:
+		if colIdx == 1 {
+			match = SortSymbol
+		} else {
+			return ""
+		}
+	}
+	if sortCol != match {
+		return ""
+	}
+	if sortAsc {
+		return " ▲"
+	}
+	return " ▼"
+}
+
+// RenderHeader returns the column header row.
+func RenderHeader(termWidth int, sortCol SortCol, sortAsc bool) string {
+	vis := visibleColumns(termWidth)
+	widths := colWidths(termWidth, vis)
+
 	var sb strings.Builder
-	for i, h := range columnHeaders {
-		sb.WriteString(styleHeader.Render(padRight(h, widths[i])))
+	for j, colIdx := range vis {
+		name := columns[colIdx].name + sortIndicator(colIdx, sortCol, sortAsc)
+		inner := widths[j] - 2 // reserve 2 char gap
+		if inner < 1 {
+			inner = 1
+		}
+		var cell string
+		if columns[colIdx].rightAlign {
+			cell = padLeft(name, inner)
+		} else {
+			cell = padRight(name, inner)
+		}
+		sb.WriteString(styleHeader.Render(cell + "  "))
 	}
 	return sb.String()
 }
@@ -41,29 +109,45 @@ func RenderSeparator(termWidth int) string {
 	return styleSep.Render(strings.Repeat("─", termWidth))
 }
 
-// RenderRow renders a single ticker row. rank is 1-based.
-func RenderRow(rank int, t ticker.Ticker, widths []int) string {
-	flashing := time.Now().Before(t.FlashUntil)
-
-	cells := []string{
-		fmt.Sprintf("%d", rank),
-		t.DisplaySymbol(),
-		ticker.FormatPrice(t.LastPrice),
-		formatChange(t.PriceChangePercent),
-		ticker.FormatVolume(t.QuoteVolume),
-		ticker.FormatPrice(t.HighPrice),
-		ticker.FormatPrice(t.LowPrice),
-		ticker.FormatPrice(t.BidPrice),
-		ticker.FormatPrice(t.AskPrice),
-	}
+// RenderRow renders a single ticker row.
+// rank is 1-based, isCursor highlights the row, sparkData is the price history.
+func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64) string {
+	vis := visibleColumns(termWidth)
+	widths := colWidths(termWidth, vis)
+	flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
 
 	var sb strings.Builder
-	for i, cell := range cells {
-		padded := padRight(cell, widths[i])
-		if flashing && t.Flash != ticker.FlashNeutral {
+	for j, colIdx := range vis {
+		inner := widths[j] - 2 // reserve 2 char gap
+		if inner < 1 {
+			inner = 1
+		}
+
+		// TREND column is pre-styled per-character, handle separately.
+		if colIdx == 4 {
+			styled, dw := renderSparkline(sparkData, inner)
+			if dw < inner {
+				styled += strings.Repeat(" ", inner-dw)
+			}
+			sb.WriteString(styled + "  ")
+			continue
+		}
+
+		cell := cellValue(colIdx, rank, t, sparkData)
+		var padded string
+		if columns[colIdx].rightAlign {
+			padded = padLeft(cell, inner)
+		} else {
+			padded = padRight(cell, inner)
+		}
+		padded += "  " // gap
+
+		if flashing {
 			sb.WriteString(flashStyle(t.Flash).Render(padded))
-		} else if i == 3 {
+		} else if colIdx == 3 { // CHANGE column
 			sb.WriteString(changeStyle(t.PriceChangePercent).Render(padded))
+		} else if isCursor {
+			sb.WriteString(styleCursorRow.Render(padded))
 		} else {
 			sb.WriteString(padded)
 		}
@@ -71,16 +155,94 @@ func RenderRow(rank int, t ticker.Ticker, widths []int) string {
 	return sb.String()
 }
 
-// RenderFooter renders the bottom status bar.
-func RenderFooter(pairCount int, connected bool, termWidth int) string {
+// cellValue returns the display string for a column.
+func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
+	switch colIdx {
+	case 0: // #
+		return fmt.Sprintf("%d", rank)
+	case 1: // SYMBOL
+		return t.DisplaySymbol()
+	case 2: // PRICE
+		return ticker.FormatPrice(t.LastPrice)
+	case 3: // CHANGE
+		return formatChange(t.PriceChangePercent)
+	case 4: // TREND — handled separately in RenderRow
+		return ""
+	case 5: // VOLUME
+		return ticker.FormatVolume(t.QuoteVolume)
+	}
+	return ""
+}
+
+// RenderFooter renders the bottom status bar with clock and BTC price.
+func RenderFooter(pairCount int, connected bool, termWidth int, btcPrice float64) string {
 	dot := styleDotConnected.Render("●")
 	status := "connected"
 	if !connected {
 		dot = styleDotReconnecting.Render("●")
 		status = "reconnecting..."
 	}
-	text := fmt.Sprintf("q quit  •  %d pairs  •  %s %s", pairCount, dot, status)
+
+	now := time.Now().Format("15:04:05")
+	btc := ""
+	if btcPrice > 0 {
+		btc = fmt.Sprintf("BTC %s  •  ", ticker.FormatPrice(btcPrice))
+	}
+
+	left := fmt.Sprintf(" q quit  •  j/k scroll  •  tab sort  •  %d pairs", pairCount)
+	right := fmt.Sprintf("%s%s  %s %s ", btc, now, dot, status)
+
+	gap := termWidth - len(left) - len(right)
+	if gap < 1 {
+		gap = 1
+	}
+	text := left + strings.Repeat(" ", gap) + right
 	return styleFooter.Render(text)
+}
+
+// renderSparkline renders a heatmap-style sparkline where each bar is colored
+// green (up from previous) or red (down from previous).
+// Returns the styled string and its display width (number of characters).
+func renderSparkline(data []float64, maxWidth int) (string, int) {
+	if len(data) < 2 {
+		return "", 0
+	}
+
+	// Truncate to fit available width.
+	if len(data) > maxWidth {
+		data = data[len(data)-maxWidth:]
+	}
+
+	blocks := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	mn, mx := data[0], data[0]
+	for _, v := range data {
+		mn = math.Min(mn, v)
+		mx = math.Max(mx, v)
+	}
+	spread := mx - mn
+	if spread == 0 {
+		spread = 1
+	}
+
+	var sb strings.Builder
+	for i, v := range data {
+		idx := int((v - mn) / spread * float64(len(blocks)-1))
+		if idx >= len(blocks) {
+			idx = len(blocks) - 1
+		}
+		ch := string(blocks[idx])
+
+		if i == 0 {
+			sb.WriteString(styleNeutral.Render(ch))
+		} else if v > data[i-1] {
+			sb.WriteString(stylePositive.Render(ch))
+		} else if v < data[i-1] {
+			sb.WriteString(styleNegative.Render(ch))
+		} else {
+			sb.WriteString(styleNeutral.Render(ch))
+		}
+	}
+	return sb.String(), len(data)
 }
 
 func formatChange(pct float64) string {
@@ -97,7 +259,7 @@ func flashStyle(dir ticker.FlashDir) lipgloss.Style {
 	case ticker.FlashNegative:
 		return styleFlashNegative
 	default:
-		return styleFlashNeutral
+		return lipgloss.NewStyle()
 	}
 }
 
@@ -112,9 +274,30 @@ func changeStyle(pct float64) lipgloss.Style {
 	}
 }
 
-func padRight(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
+func displayWidth(s string) int {
+	return len([]rune(s))
+}
+
+func truncateRunes(s string, width int) string {
+	r := []rune(s)
+	if len(r) <= width {
+		return s
 	}
-	return s + strings.Repeat(" ", width-len(s))
+	return string(r[:width])
+}
+
+func padRight(s string, width int) string {
+	w := displayWidth(s)
+	if w >= width {
+		return truncateRunes(s, width)
+	}
+	return s + strings.Repeat(" ", width-w)
+}
+
+func padLeft(s string, width int) string {
+	w := displayWidth(s)
+	if w >= width {
+		return truncateRunes(s, width)
+	}
+	return strings.Repeat(" ", width-w) + s
 }
