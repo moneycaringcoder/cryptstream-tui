@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// FlashDir indicates the direction of a price change for flash coloring.
+type FlashDir int8
+
+const (
+	FlashNeutral  FlashDir = 0
+	FlashPositive FlashDir = 1
+	FlashNegative FlashDir = -1
+)
+
 // Ticker holds the current market data for a single trading pair.
 type Ticker struct {
 	Symbol             string
@@ -18,6 +27,7 @@ type Ticker struct {
 	BidPrice           float64
 	AskPrice           float64
 	FlashUntil         time.Time
+	Flash              FlashDir
 }
 
 // DisplaySymbol strips the USDT suffix for display (e.g. "BTCUSDT" → "BTC").

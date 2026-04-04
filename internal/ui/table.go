@@ -60,8 +60,8 @@ func RenderRow(rank int, t ticker.Ticker, widths []int) string {
 	var sb strings.Builder
 	for i, cell := range cells {
 		padded := padRight(cell, widths[i])
-		if flashing {
-			sb.WriteString(styleFlashRow.Render(padded))
+		if flashing && t.Flash != ticker.FlashNeutral {
+			sb.WriteString(flashStyle(t.Flash).Render(padded))
 		} else if i == 3 {
 			sb.WriteString(changeStyle(t.PriceChangePercent).Render(padded))
 		} else {
@@ -88,6 +88,17 @@ func formatChange(pct float64) string {
 		return fmt.Sprintf("+%.2f%%", pct)
 	}
 	return fmt.Sprintf("%.2f%%", pct)
+}
+
+func flashStyle(dir ticker.FlashDir) lipgloss.Style {
+	switch dir {
+	case ticker.FlashPositive:
+		return styleFlashPositive
+	case ticker.FlashNegative:
+		return styleFlashNegative
+	default:
+		return styleFlashNeutral
+	}
 }
 
 func changeStyle(pct float64) lipgloss.Style {

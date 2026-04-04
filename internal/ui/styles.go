@@ -7,8 +7,10 @@ var (
 	colorRed     = lipgloss.Color("#ff4444")
 	colorDim     = lipgloss.Color("#555555")
 	colorSep     = lipgloss.Color("#333333")
-	colorFlash   = lipgloss.Color("#ffffff")
-	colorFooter  = lipgloss.Color("#666666")
+	colorFlashGreen = lipgloss.Color("#1a3a2a")
+	colorFlashRed   = lipgloss.Color("#3a1a1a")
+	colorFlashGray  = lipgloss.Color("#2a2a2a")
+	colorFooter     = lipgloss.Color("#666666")
 	colorDotGreen  = lipgloss.Color("#00ff88")
 	colorDotYellow = lipgloss.Color("#ffaa00")
 
@@ -20,9 +22,17 @@ var (
 	styleNegative = lipgloss.NewStyle().Foreground(colorRed)
 	styleNeutral  = lipgloss.NewStyle().Foreground(colorDim)
 
-	styleFlashRow = lipgloss.NewStyle().
-			Background(colorFlash).
-			Foreground(lipgloss.Color("#000000"))
+	styleFlashPositive = lipgloss.NewStyle().
+				Background(colorFlashGreen).
+				Foreground(colorGreen)
+
+	styleFlashNegative = lipgloss.NewStyle().
+				Background(colorFlashRed).
+				Foreground(colorRed)
+
+	styleFlashNeutral = lipgloss.NewStyle().
+				Background(colorFlashGray).
+				Foreground(colorDim)
 
 	styleSep = lipgloss.NewStyle().Foreground(colorSep)
 

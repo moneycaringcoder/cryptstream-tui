@@ -26,8 +26,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickerMsg:
 		t := ticker.Ticker(msg)
 		t.FlashUntil = time.Now().Add(300 * time.Millisecond)
-		// Mini ticker lacks bid/ask — preserve from existing data.
 		if prev, ok := m.tickers[t.Symbol]; ok {
+			// Determine flash direction from price change.
+			diff := t.LastPrice - prev.LastPrice
+			switch {
+			case diff > 0.0001:
+				t.Flash = ticker.FlashPositive
+			case diff < -0.0001:
+				t.Flash = ticker.FlashNegative
+			default:
+				t.Flash = ticker.FlashNeutral
+			}
+			// Mini ticker lacks bid/ask — preserve from existing data.
 			if t.BidPrice == 0 {
 				t.BidPrice = prev.BidPrice
 			}
