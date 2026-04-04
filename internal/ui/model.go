@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/watchlist"
 )
@@ -30,9 +31,6 @@ const (
 	sortColCount // sentinel for wrap-around
 )
 
-// maxHistory is the number of recent prices kept per symbol for sparklines.
-const maxHistory = 20
-
 // FilterMode controls which subset of tickers to display.
 type FilterMode int
 
@@ -45,6 +43,8 @@ const (
 
 // Model is the Bubble Tea application state.
 type Model struct {
+	cfg          config.Config
+	styles       Styles
 	tickers      map[string]ticker.Ticker // keyed by Symbol
 	sorted       []ticker.Ticker          // current sorted view
 	priceHistory map[string][]float64     // recent prices per symbol for sparklines
@@ -60,17 +60,47 @@ type Model struct {
 	filterMode   FilterMode // current filter
 	searching    bool       // search input mode active
 	searchQuery  string     // current search text
+	configUI     configState
+}
+
+// parseSortCol converts a config string to a SortCol.
+func parseSortCol(s string) SortCol {
+	switch strings.ToLower(s) {
+	case "price":
+		return SortPrice
+	case "change":
+		return SortChange
+	case "symbol":
+		return SortSymbol
+	default:
+		return SortVolume
+	}
+}
+
+// parseFilterMode converts a config string to a FilterMode.
+func parseFilterMode(s string) FilterMode {
+	switch strings.ToLower(s) {
+	case "gainers":
+		return FilterGainers
+	case "losers":
+		return FilterLosers
+	default:
+		return FilterAll
+	}
 }
 
 // New creates an initial Model pre-populated with tickers from the REST fetch.
-func New(initial []ticker.Ticker) Model {
+func New(initial []ticker.Ticker, cfg config.Config) Model {
 	m := Model{
+		cfg:          cfg,
+		styles:       NewStyles(cfg),
 		tickers:      make(map[string]ticker.Ticker, len(initial)),
 		priceHistory: make(map[string][]float64, len(initial)),
 		watchlist:    watchlist.New(),
 		connected:    false,
-		sortCol:      SortVolume,
-		sortAsc:      false,
+		sortCol:      parseSortCol(cfg.DefaultSort),
+		sortAsc:      cfg.SortAscending,
+		filterMode:   parseFilterMode(cfg.DefaultFilter),
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
@@ -101,20 +131,21 @@ func (m *Model) rebuildSorted() {
 	}
 
 	// Apply filter
+	filterCount := m.cfg.FilterCount
 	switch m.filterMode {
 	case FilterGainers:
 		sort.Slice(all, func(i, j int) bool {
 			return all[i].PriceChangePercent > all[j].PriceChangePercent
 		})
-		if len(all) > 20 {
-			all = all[:20]
+		if len(all) > filterCount {
+			all = all[:filterCount]
 		}
 	case FilterLosers:
 		sort.Slice(all, func(i, j int) bool {
 			return all[i].PriceChangePercent < all[j].PriceChangePercent
 		})
-		if len(all) > 20 {
-			all = all[:20]
+		if len(all) > filterCount {
+			all = all[:filterCount]
 		}
 	}
 
@@ -163,7 +194,6 @@ func (m *Model) clampCursor() {
 	if m.cursor >= len(m.sorted) {
 		m.cursor = len(m.sorted) - 1
 	}
-	// Adjust offset so cursor is always visible.
 	if m.visibleRows > 0 {
 		if m.cursor < m.offset {
 			m.offset = m.cursor
@@ -196,4 +226,3 @@ func ConnCmd(connected bool) tea.Cmd {
 func TickerMsgFrom(t ticker.Ticker) tea.Msg {
 	return tickerMsg(t)
 }
-

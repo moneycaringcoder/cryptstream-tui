@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -26,14 +27,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickerMsg:
 		t := ticker.Ticker(msg)
-		t.FlashUntil = time.Now().Add(300 * time.Millisecond)
+		t.FlashUntil = time.Now().Add(m.cfg.FlashDuration.Unwrap())
+		thresh := m.cfg.FlashThreshold
 		if prev, ok := m.tickers[t.Symbol]; ok {
 			diff := t.LastPrice - prev.LastPrice
 			t.PriceDelta = diff
 			switch {
-			case diff > 0.0001:
+			case diff > thresh:
 				t.Flash = ticker.FlashPositive
-			case diff < -0.0001:
+			case diff < -thresh:
 				t.Flash = ticker.FlashNegative
 			default:
 				t.Flash = ticker.FlashNeutral
@@ -42,10 +44,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tickers[t.Symbol] = t
 
 		// Track price history for sparklines.
+		maxHist := m.cfg.SparklineLength
 		h := m.priceHistory[t.Symbol]
 		h = append(h, t.LastPrice)
-		if len(h) > maxHistory {
-			h = h[len(h)-maxHistory:]
+		if len(h) > maxHist {
+			h = h[len(h)-maxHist:]
 		}
 		m.priceHistory[t.Symbol] = h
 
@@ -57,6 +60,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Config editor handles its own keys when open.
+		if m.configUI.active {
+			return m.updateConfig(msg)
+		}
+
 		// Search mode handles its own keys.
 		if m.searching {
 			switch msg.String() {
@@ -125,6 +133,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "/":
 			m.searching = true
 			m.searchQuery = ""
+		case "c":
+			m.configUI = configState{active: true}
 		case "esc":
 			// Clear active search filter
 			if m.searchQuery != "" {
@@ -134,6 +144,73 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.clampCursor()
 			}
 		}
+	}
+
+	return m, nil
+}
+
+// updateConfig handles key events in the config editor.
+func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.configUI.savedNotice > 0 {
+		m.configUI.savedNotice--
+	}
+
+	if m.configUI.editing {
+		switch msg.String() {
+		case "esc":
+			m.configUI.editing = false
+			m.configUI.editBuf = ""
+			m.configUI.editErr = ""
+		case "enter":
+			f := configFields[m.configUI.cursor]
+			if err := f.set(&m.cfg, m.configUI.editBuf); err != nil {
+				m.configUI.editErr = err.Error()
+			} else {
+				m.configUI.editing = false
+				m.configUI.editBuf = ""
+				m.configUI.editErr = ""
+				m.configUI.dirty = true
+				// Apply theme changes live
+				m.styles = NewStyles(m.cfg)
+			}
+		case "backspace":
+			if len(m.configUI.editBuf) > 0 {
+				m.configUI.editBuf = m.configUI.editBuf[:len(m.configUI.editBuf)-1]
+			}
+		default:
+			k := msg.String()
+			if len(k) == 1 && k[0] >= 32 && k[0] <= 126 {
+				m.configUI.editBuf += k
+				m.configUI.editErr = ""
+			}
+		}
+		return m, nil
+	}
+
+	switch msg.String() {
+	case "esc", "c":
+		if m.configUI.dirty {
+			config.Save(m.cfg)
+			m.configUI.savedNotice = 0
+		}
+		m.configUI.active = false
+	case "j", "down":
+		if m.configUI.cursor < len(configFields)-1 {
+			m.configUI.cursor++
+		}
+	case "k", "up":
+		if m.configUI.cursor > 0 {
+			m.configUI.cursor--
+		}
+	case "enter":
+		f := configFields[m.configUI.cursor]
+		m.configUI.editing = true
+		m.configUI.editBuf = f.get(m.cfg)
+		m.configUI.editErr = ""
+	case "ctrl+s":
+		config.Save(m.cfg)
+		m.configUI.dirty = false
+		m.configUI.savedNotice = 20 // ~2s at 100ms ticks
 	}
 
 	return m, nil

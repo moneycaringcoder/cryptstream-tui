@@ -60,7 +60,11 @@ func FetchInitial(url string) ([]ticker.Ticker, error) {
 // Stream connects to the Binance all-market WebSocket stream and sends
 // USDT ticker updates to ch. It reconnects with exponential backoff on
 // disconnect. Send on done to stop.
-func Stream(url string, ch chan<- ticker.Ticker, done <-chan struct{}) {
+func Stream(url string, ch chan<- ticker.Ticker, done <-chan struct{}, maxBackoff ...time.Duration) {
+	cap := 30 * time.Second
+	if len(maxBackoff) > 0 && maxBackoff[0] > 0 {
+		cap = maxBackoff[0]
+	}
 	backoff := time.Second
 	for {
 		select {
@@ -74,7 +78,7 @@ func Stream(url string, ch chan<- ticker.Ticker, done <-chan struct{}) {
 			case <-done:
 				return
 			case <-time.After(backoff):
-				backoff = time.Duration(math.Min(float64(backoff*2), float64(30*time.Second)))
+				backoff = time.Duration(math.Min(float64(backoff*2), float64(cap)))
 			}
 		} else {
 			return

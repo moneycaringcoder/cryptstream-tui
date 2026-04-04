@@ -1,45 +1,61 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
-
-var (
-	colorGreen   = lipgloss.Color("#00ff88")
-	colorRed     = lipgloss.Color("#ff4444")
-	colorDim     = lipgloss.Color("#555555")
-	colorSep     = lipgloss.Color("#333333")
-	colorCursor  = lipgloss.Color("#1a1a2e")
-	colorFooter  = lipgloss.Color("#666666")
-	colorDotGreen  = lipgloss.Color("#00ff88")
-	colorDotYellow = lipgloss.Color("#ffaa00")
-
-	colorFlashGreen = lipgloss.Color("#1a3a2a")
-	colorFlashRed   = lipgloss.Color("#3a1a1a")
-
-	styleHeader = lipgloss.NewStyle().
-			Foreground(colorDim).
-			Bold(true)
-
-	stylePositive = lipgloss.NewStyle().Foreground(colorGreen)
-	styleNegative = lipgloss.NewStyle().Foreground(colorRed)
-	styleNeutral  = lipgloss.NewStyle().Foreground(colorDim)
-
-	styleFlashPositive = lipgloss.NewStyle().
-				Background(colorFlashGreen).
-				Foreground(colorGreen)
-
-	styleFlashNegative = lipgloss.NewStyle().
-				Background(colorFlashRed).
-				Foreground(colorRed)
-
-	styleCursorRow = lipgloss.NewStyle().
-			Background(colorCursor)
-
-	styleSep = lipgloss.NewStyle().Foreground(colorSep)
-
-	styleFooter = lipgloss.NewStyle().Foreground(colorFooter)
-
-	styleStar = lipgloss.NewStyle().Foreground(colorDotYellow)
-
-	styleDotConnected    = lipgloss.NewStyle().Foreground(colorDotGreen)
-	styleDotReconnecting = lipgloss.NewStyle().Foreground(colorDotYellow)
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 )
+
+// Styles holds all computed lipgloss styles, derived from config.
+type Styles struct {
+	ColorGreen      lipgloss.Color
+	ColorRed        lipgloss.Color
+	ColorDim        lipgloss.Color
+	ColorSep        lipgloss.Color
+	ColorCursor     lipgloss.Color
+	ColorStar       lipgloss.Color
+	ColorFlashGreen lipgloss.Color
+	ColorFlashRed   lipgloss.Color
+
+	Header         lipgloss.Style
+	Positive       lipgloss.Style
+	Negative       lipgloss.Style
+	Neutral        lipgloss.Style
+	FlashPositive  lipgloss.Style
+	FlashNegative  lipgloss.Style
+	CursorRow      lipgloss.Style
+	Sep            lipgloss.Style
+	Footer         lipgloss.Style
+	Star           lipgloss.Style
+	DotConnected   lipgloss.Style
+	DotReconnecting lipgloss.Style
+}
+
+// NewStyles creates a Styles from the given config theme.
+func NewStyles(cfg config.Config) Styles {
+	t := cfg.Theme
+	s := Styles{
+		ColorGreen:      lipgloss.Color(t.Green),
+		ColorRed:        lipgloss.Color(t.Red),
+		ColorDim:        lipgloss.Color(t.Dim),
+		ColorSep:        lipgloss.Color(t.Separator),
+		ColorCursor:     lipgloss.Color(t.Cursor),
+		ColorStar:       lipgloss.Color(t.Star),
+		ColorFlashGreen: lipgloss.Color(t.FlashGreen),
+		ColorFlashRed:   lipgloss.Color(t.FlashRed),
+	}
+
+	s.Header = lipgloss.NewStyle().Foreground(s.ColorDim).Bold(true)
+	s.Positive = lipgloss.NewStyle().Foreground(s.ColorGreen)
+	s.Negative = lipgloss.NewStyle().Foreground(s.ColorRed)
+	s.Neutral = lipgloss.NewStyle().Foreground(s.ColorDim)
+	s.FlashPositive = lipgloss.NewStyle().Background(s.ColorFlashGreen).Foreground(s.ColorGreen)
+	s.FlashNegative = lipgloss.NewStyle().Background(s.ColorFlashRed).Foreground(s.ColorRed)
+	s.CursorRow = lipgloss.NewStyle().Background(s.ColorCursor)
+	s.Sep = lipgloss.NewStyle().Foreground(s.ColorSep)
+	s.Footer = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Footer))
+	s.Star = lipgloss.NewStyle().Foreground(s.ColorStar)
+	s.DotConnected = lipgloss.NewStyle().Foreground(s.ColorGreen)
+	s.DotReconnecting = lipgloss.NewStyle().Foreground(s.ColorStar)
+
+	return s
+}
