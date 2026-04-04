@@ -52,9 +52,9 @@ func (m *Model) rebuildSorted() {
 	m.sorted = all
 }
 
-// Init starts the 100ms tick command.
+// Init starts the 100ms tick command and signals connection ready.
 func (m Model) Init() tea.Cmd {
-	return tickCmd()
+	return tea.Batch(tickCmd(), ConnCmd(true))
 }
 
 func tickCmd() tea.Cmd {
@@ -74,3 +74,4 @@ func ConnCmd(connected bool) tea.Cmd {
 func TickerMsgFrom(t ticker.Ticker) tea.Msg {
 	return tickerMsg(t)
 }
+

@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	restURL = "https://api.binance.com/api/v3/ticker/24hr"
-	wsURL   = "wss://stream.binance.com/stream?streams=!ticker@arr"
+	// RestURL is the Binance 24hr ticker REST endpoint.
+	RestURL = "https://api.binance.com/api/v3/ticker/24hr"
+	// WsURL is the Binance all-market ticker WebSocket stream.
+	WsURL = "wss://stream.binance.com/stream?streams=!ticker@arr"
 )
 
 // FetchInitial calls the Binance REST 24hr ticker endpoint, filters to USDT

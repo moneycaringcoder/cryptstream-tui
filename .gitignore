@@ -1,6 +1,6 @@
-# Binaries
-cryptstream
-cryptstream.exe
+# Binaries (root-level compiled outputs only)
+/cryptstream
+/cryptstream.exe
 dist/
 
 # Go
