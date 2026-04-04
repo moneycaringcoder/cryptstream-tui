@@ -133,36 +133,39 @@ func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkDat
 			continue
 		}
 
-		// SYMBOL column: prepend yellow star if starred, reducing inner width.
-		starPrefix := ""
-		cellInner := inner
+		cell := cellValue(colIdx, rank, t, sparkData, starred)
+
+		// For starred SYMBOL column, prepend star into the cell text (plain char).
 		if colIdx == 1 && starred {
-			starPrefix = styleStar.Render("★") + " "
-			cellInner -= 2 // star + space
-			if cellInner < 1 {
-				cellInner = 1
-			}
+			cell = "★ " + cell
 		}
 
-		cell := cellValue(colIdx, rank, t, sparkData, starred)
 		var padded string
 		if columns[colIdx].rightAlign {
-			padded = padLeft(cell, cellInner)
+			padded = padLeft(cell, inner)
 		} else {
-			padded = padRight(cell, cellInner)
-		}
-
-		if starPrefix != "" {
-			padded = starPrefix + padded
+			padded = padRight(cell, inner)
 		}
 		padded += "  " // gap
 
 		if flashing {
 			sb.WriteString(flashStyle(t.Flash).Render(padded))
-		} else if colIdx == 3 { // CHANGE column
-			sb.WriteString(changeStyle(t.PriceChangePercent).Render(padded))
 		} else if isCursor {
-			sb.WriteString(styleCursorRow.Render(padded))
+			// Cursor row: apply cursor background to everything,
+			// then layer foreground color for special columns.
+			if colIdx == 3 {
+				sb.WriteString(styleCursorRow.Foreground(changeColor(t.PriceChangePercent)).Render(padded))
+			} else if colIdx == 1 && starred {
+				runes := []rune(padded)
+				sb.WriteString(styleCursorRow.Foreground(colorDotYellow).Render(string(runes[:1])) + styleCursorRow.Render(string(runes[1:])))
+			} else {
+				sb.WriteString(styleCursorRow.Render(padded))
+			}
+		} else if colIdx == 3 {
+			sb.WriteString(changeStyle(t.PriceChangePercent).Render(padded))
+		} else if colIdx == 1 && starred {
+			runes := []rune(padded)
+			sb.WriteString(styleStar.Render(string(runes[:1])) + string(runes[1:]))
 		} else {
 			sb.WriteString(padded)
 		}
@@ -310,6 +313,17 @@ func flashStyle(dir ticker.FlashDir) lipgloss.Style {
 		return styleFlashNegative
 	default:
 		return lipgloss.NewStyle()
+	}
+}
+
+func changeColor(pct float64) lipgloss.Color {
+	switch {
+	case pct > 0.05:
+		return colorGreen
+	case pct < -0.05:
+		return colorRed
+	default:
+		return colorDim
 	}
 }
 

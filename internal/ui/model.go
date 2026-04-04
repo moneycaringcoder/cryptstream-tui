@@ -58,7 +58,6 @@ type Model struct {
 	sortCol      SortCol    // active sort column
 	sortAsc      bool       // ascending if true
 	filterMode   FilterMode // current filter
-	showDetail   bool       // detail popup visible
 	searching    bool       // search input mode active
 	searchQuery  string     // current search text
 }

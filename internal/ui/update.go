@@ -57,15 +57,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Detail popup handles its own keys when open.
-		if m.showDetail {
-			switch msg.String() {
-			case "esc", "enter", "q":
-				m.showDetail = false
-			}
-			return m, nil
-		}
-
 		// Search mode handles its own keys.
 		if m.searching {
 			switch msg.String() {
@@ -131,10 +122,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildSorted()
 			m.cursor = 0
 			m.clampCursor()
-		case "enter":
-			if m.cursor >= 0 && m.cursor < len(m.sorted) {
-				m.showDetail = true
-			}
 		case "/":
 			m.searching = true
 			m.searchQuery = ""
