@@ -20,3 +20,6 @@ Thumbs.db
 
 # Internal docs / specs / plans
 docs/
+
+# Slop configs
+.claude/
