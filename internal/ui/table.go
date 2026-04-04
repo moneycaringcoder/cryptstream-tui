@@ -111,7 +111,7 @@ func RenderSeparator(termWidth int) string {
 
 // RenderRow renders a single ticker row.
 // rank is 1-based, isCursor highlights the row, sparkData is the price history.
-func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64) string {
+func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool) string {
 	vis := visibleColumns(termWidth)
 	widths := colWidths(termWidth, vis)
 	flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
@@ -133,12 +133,27 @@ func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkDat
 			continue
 		}
 
-		cell := cellValue(colIdx, rank, t, sparkData)
+		// SYMBOL column: prepend yellow star if starred, reducing inner width.
+		starPrefix := ""
+		cellInner := inner
+		if colIdx == 1 && starred {
+			starPrefix = styleStar.Render("★") + " "
+			cellInner -= 2 // star + space
+			if cellInner < 1 {
+				cellInner = 1
+			}
+		}
+
+		cell := cellValue(colIdx, rank, t, sparkData, starred)
 		var padded string
 		if columns[colIdx].rightAlign {
-			padded = padLeft(cell, inner)
+			padded = padLeft(cell, cellInner)
 		} else {
-			padded = padRight(cell, inner)
+			padded = padRight(cell, cellInner)
+		}
+
+		if starPrefix != "" {
+			padded = starPrefix + padded
 		}
 		padded += "  " // gap
 
@@ -156,14 +171,23 @@ func RenderRow(rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkDat
 }
 
 // cellValue returns the display string for a column.
-func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
+func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, starred bool) string {
 	switch colIdx {
 	case 0: // #
 		return fmt.Sprintf("%d", rank)
 	case 1: // SYMBOL
 		return t.DisplaySymbol()
 	case 2: // PRICE
-		return ticker.FormatPrice(t.LastPrice)
+		price := ticker.FormatPrice(t.LastPrice)
+		if time.Now().Before(t.FlashUntil) && t.PriceDelta != 0 {
+			delta := fmt.Sprintf("%+.2f", t.PriceDelta)
+			if t.PriceDelta > 0 {
+				price += " " + delta
+			} else {
+				price += " " + delta
+			}
+		}
+		return price
 	case 3: // CHANGE
 		return formatChange(t.PriceChangePercent)
 	case 4: // TREND — handled separately in RenderRow
@@ -175,7 +199,7 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
 }
 
 // RenderFooter renders the bottom status bar with clock and BTC price.
-func RenderFooter(pairCount int, connected bool, termWidth int, btcPrice float64) string {
+func RenderFooter(pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string) string {
 	dot := styleDotConnected.Render("●")
 	status := "connected"
 	if !connected {
@@ -189,7 +213,33 @@ func RenderFooter(pairCount int, connected bool, termWidth int, btcPrice float64
 		btc = fmt.Sprintf("BTC %s  •  ", ticker.FormatPrice(btcPrice))
 	}
 
-	left := fmt.Sprintf(" q quit  •  j/k scroll  •  tab sort  •  %d pairs", pairCount)
+	if searching {
+		query := searchQuery
+		if query == "" {
+			query = "_"
+		}
+		left := fmt.Sprintf(" / %s", query)
+		right := fmt.Sprintf("esc cancel  enter confirm ")
+		gap := termWidth - len(left) - len(right)
+		if gap < 1 {
+			gap = 1
+		}
+		text := left + strings.Repeat(" ", gap) + right
+		return styleFooter.Render(text)
+	}
+
+	filterLabel := ""
+	switch filter {
+	case FilterGainers:
+		filterLabel = "  •  ↑ GAINERS"
+	case FilterLosers:
+		filterLabel = "  •  ↓ LOSERS"
+	}
+	searchLabel := ""
+	if searchQuery != "" {
+		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
+	}
+	left := fmt.Sprintf(" q quit  j/k scroll  tab sort  s star  f filter  / search  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
 	right := fmt.Sprintf("%s%s  %s %s ", btc, now, dot, status)
 
 	gap := termWidth - len(left) - len(right)

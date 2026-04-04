@@ -38,6 +38,8 @@ var (
 
 	styleFooter = lipgloss.NewStyle().Foreground(colorFooter)
 
+	styleStar = lipgloss.NewStyle().Foreground(colorDotYellow)
+
 	styleDotConnected    = lipgloss.NewStyle().Foreground(colorDotGreen)
 	styleDotReconnecting = lipgloss.NewStyle().Foreground(colorDotYellow)
 )

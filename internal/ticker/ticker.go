@@ -28,6 +28,7 @@ type Ticker struct {
 	AskPrice           float64
 	FlashUntil         time.Time
 	Flash              FlashDir
+	PriceDelta         float64 // change from previous update, shown briefly
 }
 
 // DisplaySymbol strips the USDT suffix for display (e.g. "BTCUSDT" → "BTC").

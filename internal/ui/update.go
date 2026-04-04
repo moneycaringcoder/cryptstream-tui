@@ -28,8 +28,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		t := ticker.Ticker(msg)
 		t.FlashUntil = time.Now().Add(300 * time.Millisecond)
 		if prev, ok := m.tickers[t.Symbol]; ok {
-			// Determine flash direction from price change.
 			diff := t.LastPrice - prev.LastPrice
+			t.PriceDelta = diff
 			switch {
 			case diff > 0.0001:
 				t.Flash = ticker.FlashPositive
@@ -57,6 +57,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Detail popup handles its own keys when open.
+		if m.showDetail {
+			switch msg.String() {
+			case "esc", "enter", "q":
+				m.showDetail = false
+			}
+			return m, nil
+		}
+
+		// Search mode handles its own keys.
+		if m.searching {
+			switch msg.String() {
+			case "esc":
+				m.searching = false
+				m.searchQuery = ""
+				m.rebuildSorted()
+				m.cursor = 0
+				m.clampCursor()
+			case "enter":
+				m.searching = false
+				// keep the filter active
+			case "backspace":
+				if len(m.searchQuery) > 0 {
+					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+					m.rebuildSorted()
+					m.cursor = 0
+					m.clampCursor()
+				}
+			default:
+				k := msg.String()
+				if len(k) == 1 && k[0] >= 32 && k[0] <= 126 {
+					m.searchQuery += k
+					m.rebuildSorted()
+					m.cursor = 0
+					m.clampCursor()
+				}
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -80,6 +120,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sortCol = (m.sortCol - 1 + sortColCount) % sortColCount
 			m.rebuildSorted()
 			m.clampCursor()
+		case "s":
+			if m.cursor >= 0 && m.cursor < len(m.sorted) {
+				m.watchlist.Toggle(m.sorted[m.cursor].Symbol)
+				m.rebuildSorted()
+				m.clampCursor()
+			}
+		case "f":
+			m.filterMode = (m.filterMode + 1) % filterModeCount
+			m.rebuildSorted()
+			m.cursor = 0
+			m.clampCursor()
+		case "enter":
+			if m.cursor >= 0 && m.cursor < len(m.sorted) {
+				m.showDetail = true
+			}
+		case "/":
+			m.searching = true
+			m.searchQuery = ""
+		case "esc":
+			// Clear active search filter
+			if m.searchQuery != "" {
+				m.searchQuery = ""
+				m.rebuildSorted()
+				m.cursor = 0
+				m.clampCursor()
+			}
 		}
 	}
 
