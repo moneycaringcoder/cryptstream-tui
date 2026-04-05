@@ -105,7 +105,7 @@ func RenderSeparator(s Styles, termWidth int) string {
 }
 
 // RenderRow renders a single ticker row.
-func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool) string {
+func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64) string {
 	vis := visibleColumns(termWidth)
 	widths := colWidths(termWidth, vis)
 	flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
@@ -127,10 +127,7 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 			continue
 		}
 
-		cell := cellValue(colIdx, rank, t, sparkData, starred)
-		if colIdx == 1 && starred {
-			cell = "★ " + cell
-		}
+		cell := cellValue(colIdx, rank, t, sparkData)
 
 		var padded string
 		if columns[colIdx].rightAlign {
@@ -145,17 +142,11 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 		} else if isCursor {
 			if colIdx == 3 {
 				sb.WriteString(s.CursorRow.Foreground(changeColor(s, t.PriceChangePercent)).Render(padded))
-			} else if colIdx == 1 && starred {
-				runes := []rune(padded)
-				sb.WriteString(s.CursorRow.Foreground(s.ColorStar).Render(string(runes[:1])) + s.CursorRow.Render(string(runes[1:])))
 			} else {
 				sb.WriteString(s.CursorRow.Render(padded))
 			}
 		} else if colIdx == 3 {
 			sb.WriteString(changeStyle(s, t.PriceChangePercent).Render(padded))
-		} else if colIdx == 1 && starred {
-			runes := []rune(padded)
-			sb.WriteString(s.Star.Render(string(runes[:1])) + string(runes[1:]))
 		} else {
 			sb.WriteString(padded)
 		}
@@ -163,7 +154,7 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 	return sb.String()
 }
 
-func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, starred bool) string {
+func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
 	switch colIdx {
 	case 0:
 		return fmt.Sprintf("%d", rank)

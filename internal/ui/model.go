@@ -189,11 +189,6 @@ func (m *Model) rebuildSorted() {
 	}
 
 	sort.SliceStable(all, func(i, j int) bool {
-		si := m.watchlist.IsStarred(all[i].Symbol)
-		sj := m.watchlist.IsStarred(all[j].Symbol)
-		if si != sj {
-			return si // starred first
-		}
 		if m.sortAsc {
 			return !lessVal(i, j)
 		}

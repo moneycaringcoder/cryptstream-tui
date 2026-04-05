@@ -128,6 +128,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "s":
 			if m.cursor >= 0 && m.cursor < len(m.sorted) {
 				m.watchlist.Toggle(m.sorted[m.cursor].Symbol)
+				// Auto-show sidebar so user sees the starred coin appear
+				if !m.panelOn {
+					m.panelOn = true
+					m.cfg.PanelLayout = "right"
+					m.visibleRows = m.tableVisibleRows()
+				}
 				m.rebuildSorted()
 				m.clampCursor()
 			}

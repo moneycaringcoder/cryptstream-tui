@@ -52,8 +52,7 @@ func (m Model) renderTable(tableW int) string {
 		t := m.sorted[i]
 		isCursor := i == m.cursor
 		spark := m.priceHistory[t.Symbol]
-		starred := m.watchlist.IsStarred(t.Symbol)
-		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred))
+		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark))
 		sb.WriteByte('\n')
 	}
 
