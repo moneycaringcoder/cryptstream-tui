@@ -28,6 +28,8 @@ type Styles struct {
 	Star           lipgloss.Style
 	DotConnected   lipgloss.Style
 	DotReconnecting lipgloss.Style
+	PanelBorder    lipgloss.Style
+	PanelLabel     lipgloss.Style
 }
 
 // NewStyles creates a Styles from the given config theme.
@@ -56,6 +58,8 @@ func NewStyles(cfg config.Config) Styles {
 	s.Star = lipgloss.NewStyle().Foreground(s.ColorStar)
 	s.DotConnected = lipgloss.NewStyle().Foreground(s.ColorGreen)
 	s.DotReconnecting = lipgloss.NewStyle().Foreground(s.ColorStar)
+	s.PanelBorder = lipgloss.NewStyle().Foreground(s.ColorSep)
+	s.PanelLabel = lipgloss.NewStyle().Foreground(s.ColorDim).Bold(true)
 
 	return s
 }

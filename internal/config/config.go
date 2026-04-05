@@ -20,6 +20,9 @@ type Config struct {
 	FilterCount         int     `json:"filter_count"`
 	FlashThreshold      float64 `json:"flash_threshold"`
 
+	// Panel
+	PanelLayout string `json:"panel_layout"`
+
 	// Connection
 	WsURL           string   `json:"ws_url"`
 	RestURL         string   `json:"rest_url"`
@@ -77,6 +80,8 @@ func Default() Config {
 		DefaultFilter:  "all",
 		FilterCount:    20,
 		FlashThreshold: 0.0001,
+
+		PanelLayout: "off",
 
 		WsURL:      "wss://stream.binance.com:9443/ws/!miniTicker@arr",
 		RestURL:    "https://api.binance.com/api/v3/ticker/24hr",

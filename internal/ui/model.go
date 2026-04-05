@@ -31,6 +31,29 @@ const (
 	sortColCount // sentinel for wrap-around
 )
 
+// parsePanelOn converts a config string to a bool.
+func parsePanelOn(s string) bool {
+	switch strings.ToLower(s) {
+	case "off", "false", "":
+		return false
+	default:
+		return true
+	}
+}
+
+// MarketStats holds precomputed aggregate market data for the panel.
+type MarketStats struct {
+	TotalVolume  float64
+	GainerCount  int
+	LoserCount   int
+	AvgChange    float64
+	BtcDominance float64
+	TopGainers   []ticker.Ticker // top 3
+	TopLosers    []ticker.Ticker // top 3
+	BtcTicker    ticker.Ticker
+	EthTicker    ticker.Ticker
+}
+
 // FilterMode controls which subset of tickers to display.
 type FilterMode int
 
@@ -60,6 +83,8 @@ type Model struct {
 	filterMode   FilterMode // current filter
 	searching    bool       // search input mode active
 	searchQuery  string     // current search text
+	panelOn      bool
+	marketStats  MarketStats
 	configUI     configState
 	showHelp     bool
 }
@@ -102,6 +127,7 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 		sortCol:      parseSortCol(cfg.DefaultSort),
 		sortAsc:      cfg.SortAscending,
 		filterMode:   parseFilterMode(cfg.DefaultFilter),
+		panelOn:      parsePanelOn(cfg.PanelLayout),
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
@@ -175,6 +201,66 @@ func (m *Model) rebuildSorted() {
 		return lessVal(i, j)
 	})
 	m.sorted = all
+	m.computeMarketStats()
+}
+
+// computeMarketStats derives aggregate stats from all tickers (unfiltered).
+func (m *Model) computeMarketStats() {
+	var totalVol, totalChange float64
+	var gainerCount, loserCount int
+
+	all := make([]ticker.Ticker, 0, len(m.tickers))
+	for _, t := range m.tickers {
+		all = append(all, t)
+		totalVol += t.QuoteVolume
+		totalChange += t.PriceChangePercent
+		if t.PriceChangePercent > 0 {
+			gainerCount++
+		} else if t.PriceChangePercent < 0 {
+			loserCount++
+		}
+	}
+
+	avgChange := 0.0
+	if len(all) > 0 {
+		avgChange = totalChange / float64(len(all))
+	}
+
+	btcDom := 0.0
+	if btc, ok := m.tickers["BTCUSDT"]; ok && totalVol > 0 {
+		btcDom = btc.QuoteVolume / totalVol * 100
+	}
+
+	// Sort a copy to find top gainers/losers
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].PriceChangePercent > all[j].PriceChangePercent
+	})
+
+	topGainers := make([]ticker.Ticker, 0, topN)
+	for i := 0; i < topN && i < len(all); i++ {
+		if all[i].PriceChangePercent > 0 {
+			topGainers = append(topGainers, all[i])
+		}
+	}
+
+	topLosers := make([]ticker.Ticker, 0, topN)
+	for i := len(all) - 1; i >= 0 && len(topLosers) < topN; i-- {
+		if all[i].PriceChangePercent < 0 {
+			topLosers = append(topLosers, all[i])
+		}
+	}
+
+	m.marketStats = MarketStats{
+		TotalVolume:  totalVol,
+		GainerCount:  gainerCount,
+		LoserCount:   loserCount,
+		AvgChange:    avgChange,
+		BtcDominance: btcDom,
+		TopGainers:   topGainers,
+		TopLosers:    topLosers,
+		BtcTicker:    m.tickers["BTCUSDT"],
+		EthTicker:    m.tickers["ETHUSDT"],
+	}
 }
 
 // PriceHistory returns the sparkline data for a symbol.

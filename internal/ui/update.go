@@ -15,10 +15,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.termW = msg.Width
 		m.termH = msg.Height
-		m.visibleRows = msg.Height - 4 // header + separator + footer separator + footer
-		if m.visibleRows < 0 {
-			m.visibleRows = 0
-		}
+		m.visibleRows = m.tableVisibleRows()
 		m.clampCursor()
 		return m, nil
 
@@ -144,6 +141,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchQuery = ""
 		case "c":
 			m.configUI = configState{active: true}
+		case "p":
+			m.panelOn = !m.panelOn
+			if m.panelOn {
+				m.cfg.PanelLayout = "right"
+			} else {
+				m.cfg.PanelLayout = "off"
+			}
+			m.visibleRows = m.tableVisibleRows()
+			m.clampCursor()
 		case "?":
 			m.showHelp = true
 		case "esc":

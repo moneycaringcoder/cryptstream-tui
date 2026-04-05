@@ -29,6 +29,7 @@ var helpSections = []struct {
 			{"shift+tab", "Cycle sort column backwards"},
 			{"s", "Star / unstar selected symbol"},
 			{"f", "Cycle filter (all → gainers → losers)"},
+			{"p", "Toggle panel (off → right → bottom)"},
 		},
 	},
 	{

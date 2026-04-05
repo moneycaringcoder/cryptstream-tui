@@ -80,6 +80,17 @@ var configFields = []configField{
 		return nil
 	}},
 
+	// Panel
+	{group: "Panel", label: "Panel Layout", get: func(c config.Config) string { return c.PanelLayout }, set: func(c *config.Config, v string) error {
+		v = strings.ToLower(v)
+		switch v {
+		case "off", "right":
+			c.PanelLayout = v
+			return nil
+		}
+		return fmt.Errorf("must be off or right")
+	}},
+
 	// Connection
 	{group: "Connection", label: "WebSocket URL", get: func(c config.Config) string { return c.WsURL }, set: func(c *config.Config, v string) error {
 		c.WsURL = v
