@@ -48,10 +48,9 @@ type MarketStats struct {
 	LoserCount   int
 	AvgChange    float64
 	BtcDominance float64
-	TopGainers   []ticker.Ticker // top 3
-	TopLosers    []ticker.Ticker // top 3
-	BtcTicker    ticker.Ticker
-	EthTicker    ticker.Ticker
+	TopGainers   []ticker.Ticker
+	TopLosers    []ticker.Ticker
+	Pinned       []ticker.Ticker // BTC, ETH, SOL + starred symbols
 }
 
 // FilterMode controls which subset of tickers to display.
@@ -250,6 +249,25 @@ func (m *Model) computeMarketStats() {
 		}
 	}
 
+	// Build pinned list: BTC, ETH, SOL always, then starred symbols
+	defaultPins := []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+	pinSet := make(map[string]bool, len(defaultPins))
+	var pinned []ticker.Ticker
+	for _, sym := range defaultPins {
+		pinSet[sym] = true
+		if t, ok := m.tickers[sym]; ok {
+			pinned = append(pinned, t)
+		}
+	}
+	for _, sym := range m.watchlist.Symbols() {
+		if !pinSet[sym] {
+			pinSet[sym] = true
+			if t, ok := m.tickers[sym]; ok {
+				pinned = append(pinned, t)
+			}
+		}
+	}
+
 	m.marketStats = MarketStats{
 		TotalVolume:  totalVol,
 		GainerCount:  gainerCount,
@@ -258,8 +276,7 @@ func (m *Model) computeMarketStats() {
 		BtcDominance: btcDom,
 		TopGainers:   topGainers,
 		TopLosers:    topLosers,
-		BtcTicker:    m.tickers["BTCUSDT"],
-		EthTicker:    m.tickers["ETHUSDT"],
+		Pinned:       pinned,
 	}
 }
 

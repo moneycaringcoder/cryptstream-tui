@@ -187,8 +187,15 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.configUI.editBuf = ""
 				m.configUI.editErr = ""
 				m.configUI.dirty = true
-				// Apply theme changes live
+				// Re-derive all state from config
 				m.styles = NewStyles(m.cfg)
+				m.panelOn = parsePanelOn(m.cfg.PanelLayout)
+				m.sortCol = parseSortCol(m.cfg.DefaultSort)
+				m.sortAsc = m.cfg.SortAscending
+				m.filterMode = parseFilterMode(m.cfg.DefaultFilter)
+				m.visibleRows = m.tableVisibleRows()
+				m.rebuildSorted()
+				m.clampCursor()
 			}
 		case "backspace":
 			if len(m.configUI.editBuf) > 0 {

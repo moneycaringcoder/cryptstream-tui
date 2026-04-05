@@ -50,6 +50,17 @@ func (w *Watchlist) IsStarred(symbol string) bool {
 	return w.symbols[symbol]
 }
 
+// Symbols returns all starred symbols.
+func (w *Watchlist) Symbols() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	list := make([]string, 0, len(w.symbols))
+	for s := range w.symbols {
+		list = append(list, s)
+	}
+	return list
+}
+
 func (w *Watchlist) load() {
 	data, err := os.ReadFile(w.path)
 	if err != nil {

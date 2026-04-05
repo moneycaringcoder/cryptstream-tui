@@ -52,9 +52,10 @@ func (m Model) renderPanel() string {
 	var lines []string
 	border := s.PanelBorder.Render("┃")
 
-	// BTC/ETH reference
-	lines = append(lines, border+" "+m.formatRefLine(ms.BtcTicker, inner))
-	lines = append(lines, border+" "+m.formatRefLine(ms.EthTicker, inner))
+	// Pinned references (BTC, ETH, SOL + starred)
+	for _, t := range ms.Pinned {
+		lines = append(lines, border+" "+m.formatRefLine(t, inner))
+	}
 
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
