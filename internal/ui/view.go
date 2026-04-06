@@ -60,7 +60,8 @@ func (m Model) renderTable(tableW int) string {
 		spark := m.priceHistory[t.Symbol]
 		starred := m.watchlist.IsStarred(t.Symbol)
 		liqFlash := time.Now().Before(m.liqFlash[t.Symbol])
-		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred, liqFlash))
+		corr := m.correlations[t.Symbol]
+		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred, liqFlash, corr))
 		sb.WriteByte('\n')
 	}
 

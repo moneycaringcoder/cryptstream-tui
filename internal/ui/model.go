@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -111,6 +112,7 @@ type Model struct {
 	fearGreed    feargreed.Index
 	recentLiqs   []liquidation.Liq     // rolling feed, newest first, max 5
 	liqFlash     map[string]time.Time  // symbol -> flash expiry for liq indicator
+	correlations map[string]float64 // Pearson correlation to BTC
 	marketStats  MarketStats
 	defiPools    []defiyields.Pool
 	showDefi     bool
@@ -161,6 +163,7 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 		filterMode:   parseFilterMode(cfg.DefaultFilter),
 		panelOn:      parsePanelOn(cfg.PanelLayout),
 		liqFlash:     make(map[string]time.Time),
+		correlations: make(map[string]float64),
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
@@ -323,6 +326,52 @@ func (m *Model) computeMarketStats() {
 		VolSpikes:    spikes,
 		Pinned:       pinned,
 	}
+
+	m.computeCorrelations()
+}
+
+// computeCorrelations computes Pearson correlation of each symbol's price history vs BTC.
+func (m *Model) computeCorrelations() {
+	btcHist := m.priceHistory["BTCUSDT"]
+	if len(btcHist) < 5 {
+		return
+	}
+	for sym, hist := range m.priceHistory {
+		if sym == "BTCUSDT" {
+			m.correlations[sym] = 1.0
+			continue
+		}
+		// Align lengths (use the shorter tail)
+		a, b := btcHist, hist
+		if len(a) > len(b) {
+			a = a[len(a)-len(b):]
+		} else if len(b) > len(a) {
+			b = b[len(b)-len(a):]
+		}
+		if len(a) < 5 {
+			continue
+		}
+		m.correlations[sym] = pearson(a, b)
+	}
+}
+
+// pearson computes the Pearson correlation coefficient between two equal-length slices.
+func pearson(x, y []float64) float64 {
+	n := float64(len(x))
+	var sumX, sumY, sumXY, sumX2, sumY2 float64
+	for i := range x {
+		sumX += x[i]
+		sumY += y[i]
+		sumXY += x[i] * y[i]
+		sumX2 += x[i] * x[i]
+		sumY2 += y[i] * y[i]
+	}
+	num := n*sumXY - sumX*sumY
+	den := math.Sqrt((n*sumX2 - sumX*sumX) * (n*sumY2 - sumY*sumY))
+	if den == 0 {
+		return 0
+	}
+	return num / den
 }
 
 // PriceHistory returns the sparkline data for a symbol.
