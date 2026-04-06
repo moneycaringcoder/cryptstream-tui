@@ -59,6 +59,8 @@ func sortIndicator(colIdx int, sortCol SortCol, sortAsc bool) string {
 		match = SortPrice
 	case 3:
 		match = SortChange
+	case 5:
+		match = SortCorrelation
 	case 6:
 		match = SortVolume
 	default:
@@ -143,7 +145,7 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 
 		if flashing {
 			sb.WriteString(flashStyle(s, t.Flash).Render(padded))
-		} else if colIdx == 1 && liqFlashing {
+		} else if liqFlashing {
 			sb.WriteString(s.LiqFlash.Render(padded))
 		} else if isCursor {
 			if colIdx == 3 {
@@ -206,7 +208,7 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, corr floa
 }
 
 // RenderFooter renders the bottom status bar.
-func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string) string {
+func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int, starFlash bool) string {
 	dot := s.DotConnected.Render("●")
 	status := "connected"
 	if !connected {
@@ -245,8 +247,16 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 	if searchQuery != "" {
 		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
 	}
-	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
-	right := fmt.Sprintf("%s%s  %s %s ", btc, now, dot, status)
+	starStr := ""
+	if starFlash {
+		starStr = "  •  " + s.Star.Render("★ starred!")
+	}
+	posStr := ""
+	if totalRows > 0 {
+		posStr = fmt.Sprintf("  %d/%d", cursorPos+1, totalRows)
+	}
+	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s%s", pairCount, filterLabel, searchLabel, starStr)
+	right := fmt.Sprintf("%s%s%s  %s %s ", posStr, "  ", btc+now, dot, status)
 
 	gap := termWidth - len(left) - len(right)
 	if gap < 1 {

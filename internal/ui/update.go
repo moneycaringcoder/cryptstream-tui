@@ -25,9 +25,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		// Advance news ticker scroll every 5th tick (~500ms)
-		if len(m.newsArticles) > 0 {
-			m.newsScroll++
+		// Flash countdowns
+		if m.starFlash > 0 {
+			m.starFlash--
+		}
+		if m.newsFlash > 0 {
+			m.newsFlash--
 		}
 		return m, tickCmd()
 
@@ -121,8 +124,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case newsMsg:
 		if msg != nil {
-			m.newsArticles = []news.Article(msg)
-			m.newsScroll = 0
+			newArticles := []news.Article(msg)
+			// Detect if top article changed
+			if len(m.newsArticles) == 0 || (len(newArticles) > 0 && newArticles[0].Title != m.newsArticles[0].Title) {
+				m.newsFlash = 20 // ~2s flash
+			}
+			m.newsArticles = newArticles
 			m.visibleRows = m.tableVisibleRows()
 			m.clampCursor()
 		}
@@ -133,10 +140,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case liqMsg:
 		l := liquidation.Liq(msg)
-		// Add to recent liqs (newest first, max 5)
+		// Add to recent liqs (newest first, max 10)
 		m.recentLiqs = append([]liquidation.Liq{l}, m.recentLiqs...)
-		if len(m.recentLiqs) > 5 {
-			m.recentLiqs = m.recentLiqs[:5]
+		if len(m.recentLiqs) > 10 {
+			m.recentLiqs = m.recentLiqs[:10]
 		}
 		// Flash the coin's symbol in the table for 2 seconds
 		m.liqFlash[l.Symbol] = time.Now().Add(2 * time.Second)
@@ -145,6 +152,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case connMsg:
 		m.connected = msg.connected
 		return m, nil
+
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 
 	case tea.KeyMsg:
 		// Help screen
@@ -228,6 +238,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "G", "end":
 			m.cursor = len(m.sorted) - 1
 			m.clampCursor()
+		case "ctrl+d":
+			half := m.visibleRows / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor += half
+			m.clampCursor()
+		case "ctrl+u":
+			half := m.visibleRows / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor -= half
+			m.clampCursor()
 		case "tab":
 			m.sortCol = (m.sortCol + 1) % sortColCount
 			m.rebuildSorted()
@@ -239,6 +263,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "s":
 			if m.cursor >= 0 && m.cursor < len(m.sorted) {
 				m.watchlist.Toggle(m.sorted[m.cursor].Symbol)
+				m.starFlash = 15 // ~1.5s at 100ms ticks
 				// Auto-show sidebar so user sees the starred coin appear
 				if !m.panelOn {
 					m.panelOn = true
@@ -271,6 +296,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showDefi = true
 			m.defiCursor = 0
 			m.defiScroll = 0
+		case "n":
+			m.newsOn = !m.newsOn
+			m.visibleRows = m.tableVisibleRows()
+			m.clampCursor()
 		case "?":
 			m.showHelp = true
 		case "esc":
@@ -359,4 +388,69 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleMouse processes mouse events for table clicks and scroll wheel.
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.showHelp || m.configUI.active {
+		return m, nil
+	}
+
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		if m.showDefi {
+			m.defiCursor--
+			m.clampDefiCursor()
+		} else {
+			m.cursor--
+			m.clampCursor()
+		}
+	case tea.MouseButtonWheelDown:
+		if m.showDefi {
+			m.defiCursor++
+			m.clampDefiCursor()
+		} else {
+			m.cursor++
+			m.clampCursor()
+		}
+	case tea.MouseButtonLeft:
+		y := msg.Y
+		newsH := m.newsHeight()
+		tableEnd := 2 + m.visibleRows
+		newsStart := m.termH - 2 - newsH
+		if y >= 2 && y < tableEnd {
+			if m.showDefi {
+				row := m.defiScroll + (y - 3) // -3: title + sep + col header
+				if row >= 0 && row < len(m.defiPools) {
+					m.defiCursor = row
+					m.clampDefiCursor()
+				}
+			} else {
+				row := m.offset + (y - 2)
+				if row < len(m.sorted) {
+					m.cursor = row
+					m.clampCursor()
+				}
+			}
+		} else if newsH > 0 && y >= newsStart && y < newsStart+newsH {
+			lineIdx := y - newsStart - 1 // -1 for separator line
+			if lineIdx >= 0 && lineIdx < 4 && len(m.newsArticles) > 0 {
+				startIdx := (m.newsScroll / 30) % len(m.newsArticles)
+				articleIdx := (startIdx + lineIdx) % len(m.newsArticles)
+				url := m.newsArticles[articleIdx].URL
+				if url != "" {
+					return m, openURL(url)
+				}
+			}
+		}
+	}
+	return m, nil
+}
+
+// openURL returns a Cmd that opens a URL in the default browser.
+func openURL(url string) tea.Cmd {
+	return func() tea.Msg {
+		openBrowser(url)
+		return nil
+	}
 }

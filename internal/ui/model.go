@@ -58,6 +58,7 @@ const (
 	SortPrice
 	SortChange
 	SortSymbol
+	SortCorrelation
 	sortColCount // sentinel for wrap-around
 )
 
@@ -126,7 +127,10 @@ type Model struct {
 	defiCursor   int
 	defiScroll   int
 	newsArticles []news.Article
-	newsScroll   int // horizontal scroll offset for news ticker
+	newsScroll   int  // unused now, kept for compatibility
+	newsOn       bool // news band visible
+	newsFlash    int  // countdown ticks for new article flash
+	starFlash    int  // countdown ticks for star confirmation flash
 	configUI     configState
 	showHelp     bool
 }
@@ -140,6 +144,8 @@ func parseSortCol(s string) SortCol {
 		return SortChange
 	case "symbol":
 		return SortSymbol
+	case "correlation":
+		return SortCorrelation
 	default:
 		return SortVolume
 	}
@@ -173,6 +179,7 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 		panelOn:      parsePanelOn(cfg.PanelLayout),
 		liqFlash:     make(map[string]time.Time),
 		correlations: make(map[string]float64),
+		newsOn:       true,
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
@@ -228,6 +235,8 @@ func (m *Model) rebuildSorted() {
 			return all[i].LastPrice > all[j].LastPrice
 		case SortChange:
 			return all[i].PriceChangePercent > all[j].PriceChangePercent
+		case SortCorrelation:
+			return m.correlations[all[i].Symbol] > m.correlations[all[j].Symbol]
 		case SortSymbol:
 			return all[i].Symbol < all[j].Symbol
 		default: // SortVolume

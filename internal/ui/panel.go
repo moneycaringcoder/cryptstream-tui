@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
@@ -35,10 +37,10 @@ func (m Model) tableWidth() int {
 // tableVisibleRows returns the number of visible rows.
 // newsHeight returns the number of lines the news band occupies.
 func (m Model) newsHeight() int {
-	if len(m.newsArticles) == 0 {
+	if !m.newsOn || len(m.newsArticles) == 0 {
 		return 0
 	}
-	return 5 // separator + 4 headline lines
+	return 6 // separator + 5 headline lines
 }
 
 func (m Model) tableVisibleRows() int {
@@ -134,6 +136,43 @@ func (m Model) renderPanel() string {
 		}
 	}
 
+	// Funding rate extremes (top 3 highest + lowest)
+	if len(m.fundingRates) > 0 {
+		type fundPair struct {
+			sym  string
+			rate float64
+		}
+		var pairs []fundPair
+		for sym, info := range m.fundingRates {
+			if info.Rate != 0 {
+				pairs = append(pairs, fundPair{sym: strings.TrimSuffix(sym, "USDT"), rate: info.Rate})
+			}
+		}
+		if len(pairs) > 0 {
+			sort.Slice(pairs, func(i, j int) bool { return pairs[i].rate > pairs[j].rate })
+			lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+			lines = append(lines, border+" "+s.PanelLabel.Render("FUNDING RATES"))
+			show := 3
+			// Highest (most positive = longs pay)
+			for i := 0; i < show && i < len(pairs); i++ {
+				p := pairs[i]
+				sym := padRight(p.sym, 8)
+				rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", p.rate))
+				lines = append(lines, border+"  "+sym+" "+rate)
+			}
+			// Lowest (most negative = shorts pay)
+			for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
+				p := pairs[i]
+				if p.rate >= 0 {
+					continue
+				}
+				sym := padRight(p.sym, 8)
+				rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", p.rate))
+				lines = append(lines, border+"  "+sym+" "+rate)
+			}
+		}
+	}
+
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
@@ -180,31 +219,6 @@ func (m Model) renderPanel() string {
 				right = m.formatLiqCell(s, m.recentLiqs[i+1], liqColW)
 			}
 			lines = append(lines, border+" "+left+right)
-		}
-	}
-
-	// News preview (latest 3 headlines)
-	if len(m.newsArticles) > 0 {
-		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		newsLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
-		lines = append(lines, border+" "+newsLabel.Render("NEWS"))
-		newsCount := 3
-		if newsCount > len(m.newsArticles) {
-			newsCount = len(m.newsArticles)
-		}
-		srcStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00"))
-		titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#999999"))
-		for i := 0; i < newsCount; i++ {
-			a := m.newsArticles[i]
-			// Source on its own short line
-			lines = append(lines, border+" "+srcStyle.Render(truncateRunes(a.Source, inner)))
-			// Title wrapped to inner width
-			title := a.Title
-			titleRunes := []rune(title)
-			if len(titleRunes) > inner-1 {
-				title = string(titleRunes[:inner-2]) + "…"
-			}
-			lines = append(lines, border+" "+titleStyle.Render(title))
 		}
 	}
 
@@ -255,12 +269,27 @@ func (m Model) formatLiqCell(s Styles, l liquidation.Liq, colW int) string {
 		side = s.Positive.Render(sideStr)
 	}
 	val := l.FormatNotional()
-	plainLen := len(sym) + 1 + len(sideStr) + 1 + len(val)
+	ago := liqTimeAgo(l.Time)
+	plainLen := len(sym) + 1 + len(sideStr) + 1 + len(val) + 1 + len(ago)
 	gap := colW - plainLen
 	if gap < 0 {
 		gap = 0
 	}
-	return sym + " " + side + " " + val + strings.Repeat(" ", gap)
+	dimAgo := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render(ago)
+	return sym + " " + side + " " + val + " " + dimAgo + strings.Repeat(" ", gap)
+}
+
+// liqTimeAgo returns a compact time-ago string for liquidations.
+func liqTimeAgo(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	default:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
 }
 
 // padLeftPlain pads a plain string to the left with spaces.

@@ -13,13 +13,14 @@ import (
 type configField struct {
 	group string
 	label string
+	hint  string // one-line description shown when cursor is on this field
 	get   func(config.Config) string
 	set   func(*config.Config, string) error
 }
 
 var configFields = []configField{
 	// Display
-	{group: "Display", label: "Flash Duration", get: func(c config.Config) string { return time.Duration(c.FlashDuration).String() }, set: func(c *config.Config, v string) error {
+	{group: "Display", label: "Flash Duration", hint: "How long price flashes last (e.g. 300ms, 1s)", get: func(c config.Config) string { return time.Duration(c.FlashDuration).String() }, set: func(c *config.Config, v string) error {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return err
@@ -27,7 +28,7 @@ var configFields = []configField{
 		c.FlashDuration = config.Duration(d)
 		return nil
 	}},
-	{group: "Display", label: "Sparkline Length", get: func(c config.Config) string { return strconv.Itoa(c.SparklineLength) }, set: func(c *config.Config, v string) error {
+	{group: "Display", label: "Sparkline Length", hint: "Number of price points in trend sparkline", get: func(c config.Config) string { return strconv.Itoa(c.SparklineLength) }, set: func(c *config.Config, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return err
@@ -35,7 +36,7 @@ var configFields = []configField{
 		c.SparklineLength = n
 		return nil
 	}},
-	{group: "Display", label: "Default Sort", get: func(c config.Config) string { return c.DefaultSort }, set: func(c *config.Config, v string) error {
+	{group: "Display", label: "Default Sort", hint: "Initial sort column: volume, price, change, symbol", get: func(c config.Config) string { return c.DefaultSort }, set: func(c *config.Config, v string) error {
 		v = strings.ToLower(v)
 		switch v {
 		case "volume", "price", "change", "symbol":
@@ -44,7 +45,7 @@ var configFields = []configField{
 		}
 		return fmt.Errorf("must be volume, price, change, or symbol")
 	}},
-	{group: "Display", label: "Sort Ascending", get: func(c config.Config) string { return strconv.FormatBool(c.SortAscending) }, set: func(c *config.Config, v string) error {
+	{group: "Display", label: "Sort Ascending", hint: "true = ascending, false = descending", get: func(c config.Config) string { return strconv.FormatBool(c.SortAscending) }, set: func(c *config.Config, v string) error {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
 			return err
@@ -54,7 +55,7 @@ var configFields = []configField{
 	}},
 
 	// Behavior
-	{group: "Behavior", label: "Default Filter", get: func(c config.Config) string { return c.DefaultFilter }, set: func(c *config.Config, v string) error {
+	{group: "Behavior", label: "Default Filter", hint: "Startup filter: all, gainers, or losers", get: func(c config.Config) string { return c.DefaultFilter }, set: func(c *config.Config, v string) error {
 		v = strings.ToLower(v)
 		switch v {
 		case "all", "gainers", "losers":
@@ -63,7 +64,7 @@ var configFields = []configField{
 		}
 		return fmt.Errorf("must be all, gainers, or losers")
 	}},
-	{group: "Behavior", label: "Filter Count", get: func(c config.Config) string { return strconv.Itoa(c.FilterCount) }, set: func(c *config.Config, v string) error {
+	{group: "Behavior", label: "Filter Count", hint: "Max coins shown in gainers/losers filter", get: func(c config.Config) string { return strconv.Itoa(c.FilterCount) }, set: func(c *config.Config, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return err
@@ -71,7 +72,7 @@ var configFields = []configField{
 		c.FilterCount = n
 		return nil
 	}},
-	{group: "Behavior", label: "Flash Threshold", get: func(c config.Config) string { return strconv.FormatFloat(c.FlashThreshold, 'f', -1, 64) }, set: func(c *config.Config, v string) error {
+	{group: "Behavior", label: "Flash Threshold", hint: "Min price change ($) to trigger row flash", get: func(c config.Config) string { return strconv.FormatFloat(c.FlashThreshold, 'f', -1, 64) }, set: func(c *config.Config, v string) error {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return err
@@ -81,7 +82,7 @@ var configFields = []configField{
 	}},
 
 	// Detection
-	{group: "Detection", label: "Volume Window", get: func(c config.Config) string { return strconv.Itoa(c.VolumeWindow) }, set: func(c *config.Config, v string) error {
+	{group: "Detection", label: "Volume Window", hint: "Rolling window size for volume spike detection", get: func(c config.Config) string { return strconv.Itoa(c.VolumeWindow) }, set: func(c *config.Config, v string) error {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return err
@@ -92,7 +93,7 @@ var configFields = []configField{
 		c.VolumeWindow = n
 		return nil
 	}},
-	{group: "Detection", label: "Spike Multiplier", get: func(c config.Config) string { return strconv.FormatFloat(c.VolumeSpikeMultiplier, 'f', -1, 64) }, set: func(c *config.Config, v string) error {
+	{group: "Detection", label: "Spike Multiplier", hint: "Volume must be Nx avg to count as spike", get: func(c config.Config) string { return strconv.FormatFloat(c.VolumeSpikeMultiplier, 'f', -1, 64) }, set: func(c *config.Config, v string) error {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return err
@@ -103,7 +104,7 @@ var configFields = []configField{
 		c.VolumeSpikeMultiplier = f
 		return nil
 	}},
-	{group: "Detection", label: "Liq Min Notional", get: func(c config.Config) string { return strconv.FormatFloat(c.LiqMinNotional, 'f', 0, 64) }, set: func(c *config.Config, v string) error {
+	{group: "Detection", label: "Liq Min Notional", hint: "Min liquidation size in USD to display", get: func(c config.Config) string { return strconv.FormatFloat(c.LiqMinNotional, 'f', 0, 64) }, set: func(c *config.Config, v string) error {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return err
@@ -116,7 +117,7 @@ var configFields = []configField{
 	}},
 
 	// Panel
-	{group: "Panel", label: "Panel Layout", get: func(c config.Config) string { return c.PanelLayout }, set: func(c *config.Config, v string) error {
+	{group: "Panel", label: "Panel Layout", hint: "Sidebar position: off or right", get: func(c config.Config) string { return c.PanelLayout }, set: func(c *config.Config, v string) error {
 		v = strings.ToLower(v)
 		switch v {
 		case "off", "right":
@@ -127,15 +128,15 @@ var configFields = []configField{
 	}},
 
 	// Connection
-	{group: "Connection", label: "WebSocket URL", get: func(c config.Config) string { return c.WsURL }, set: func(c *config.Config, v string) error {
+	{group: "Connection", label: "WebSocket URL", hint: "Binance live ticker WebSocket endpoint", get: func(c config.Config) string { return c.WsURL }, set: func(c *config.Config, v string) error {
 		c.WsURL = v
 		return nil
 	}},
-	{group: "Connection", label: "REST URL", get: func(c config.Config) string { return c.RestURL }, set: func(c *config.Config, v string) error {
+	{group: "Connection", label: "REST URL", hint: "Binance REST endpoint for initial data", get: func(c config.Config) string { return c.RestURL }, set: func(c *config.Config, v string) error {
 		c.RestURL = v
 		return nil
 	}},
-	{group: "Connection", label: "Max Backoff", get: func(c config.Config) string { return time.Duration(c.MaxBackoff).String() }, set: func(c *config.Config, v string) error {
+	{group: "Connection", label: "Max Backoff", hint: "Max reconnection delay (e.g. 30s, 1m)", get: func(c config.Config) string { return time.Duration(c.MaxBackoff).String() }, set: func(c *config.Config, v string) error {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return err
@@ -145,39 +146,39 @@ var configFields = []configField{
 	}},
 
 	// Theme
-	{group: "Theme", label: "Green", get: func(c config.Config) string { return c.Theme.Green }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Green", hint: "Hex color for positive values", get: func(c config.Config) string { return c.Theme.Green }, set: func(c *config.Config, v string) error {
 		c.Theme.Green = v
 		return nil
 	}},
-	{group: "Theme", label: "Red", get: func(c config.Config) string { return c.Theme.Red }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Red", hint: "Hex color for negative values", get: func(c config.Config) string { return c.Theme.Red }, set: func(c *config.Config, v string) error {
 		c.Theme.Red = v
 		return nil
 	}},
-	{group: "Theme", label: "Dim", get: func(c config.Config) string { return c.Theme.Dim }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Dim", hint: "Hex color for neutral/dim text", get: func(c config.Config) string { return c.Theme.Dim }, set: func(c *config.Config, v string) error {
 		c.Theme.Dim = v
 		return nil
 	}},
-	{group: "Theme", label: "Separator", get: func(c config.Config) string { return c.Theme.Separator }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Separator", hint: "Hex color for separator lines", get: func(c config.Config) string { return c.Theme.Separator }, set: func(c *config.Config, v string) error {
 		c.Theme.Separator = v
 		return nil
 	}},
-	{group: "Theme", label: "Cursor", get: func(c config.Config) string { return c.Theme.Cursor }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Cursor", hint: "Hex color for cursor row background", get: func(c config.Config) string { return c.Theme.Cursor }, set: func(c *config.Config, v string) error {
 		c.Theme.Cursor = v
 		return nil
 	}},
-	{group: "Theme", label: "Footer", get: func(c config.Config) string { return c.Theme.Footer }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Footer", hint: "Hex color for footer text", get: func(c config.Config) string { return c.Theme.Footer }, set: func(c *config.Config, v string) error {
 		c.Theme.Footer = v
 		return nil
 	}},
-	{group: "Theme", label: "Flash Green BG", get: func(c config.Config) string { return c.Theme.FlashGreen }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Flash Green BG", hint: "Background color for positive price flash", get: func(c config.Config) string { return c.Theme.FlashGreen }, set: func(c *config.Config, v string) error {
 		c.Theme.FlashGreen = v
 		return nil
 	}},
-	{group: "Theme", label: "Flash Red BG", get: func(c config.Config) string { return c.Theme.FlashRed }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Flash Red BG", hint: "Background color for negative price flash", get: func(c config.Config) string { return c.Theme.FlashRed }, set: func(c *config.Config, v string) error {
 		c.Theme.FlashRed = v
 		return nil
 	}},
-	{group: "Theme", label: "Star", get: func(c config.Config) string { return c.Theme.Star }, set: func(c *config.Config, v string) error {
+	{group: "Theme", label: "Star", hint: "Hex color for star/watchlist indicator", get: func(c config.Config) string { return c.Theme.Star }, set: func(c *config.Config, v string) error {
 		c.Theme.Star = v
 		return nil
 	}},
@@ -235,11 +236,20 @@ func (m Model) renderConfigView() string {
 
 		if isCursor {
 			sb.WriteString(s.CursorRow.Render(padRight(line, m.termW)))
+			sb.WriteByte('\n')
+			rowsRendered++
+			// Show hint below cursor row
+			if f.hint != "" {
+				hintLine := "  " + s.Neutral.Render(f.hint)
+				sb.WriteString(hintLine)
+				sb.WriteByte('\n')
+				rowsRendered++
+			}
 		} else {
 			sb.WriteString(padRight(line, m.termW))
+			sb.WriteByte('\n')
+			rowsRendered++
 		}
-		sb.WriteByte('\n')
-		rowsRendered++
 		visibleIdx++
 	}
 

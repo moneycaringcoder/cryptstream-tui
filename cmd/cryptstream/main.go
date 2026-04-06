@@ -42,7 +42,7 @@ func main() {
 
 	// 4. Build initial model and start Bubble Tea program
 	model := ui.New(initial, cfg)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	// 5. Pump ticker channel into Bubble Tea via p.Send
 	go func() {
