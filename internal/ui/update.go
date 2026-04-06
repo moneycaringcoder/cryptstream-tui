@@ -407,25 +407,43 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Only handle press events, ignore release to prevent double-firing
+	if msg.Action == tea.MouseActionRelease {
+		return m, nil
+	}
+
+	tableW := m.tableWidth()
+
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		if m.showDefi {
-			m.defiCursor--
-			m.clampDefiCursor()
-		} else {
-			m.cursor--
-			m.clampCursor()
+		if msg.X < tableW {
+			if m.showDefi {
+				m.defiCursor--
+				m.clampDefiCursor()
+			} else {
+				m.cursor--
+				m.clampCursor()
+			}
 		}
 	case tea.MouseButtonWheelDown:
-		if m.showDefi {
-			m.defiCursor++
-			m.clampDefiCursor()
-		} else {
-			m.cursor++
-			m.clampCursor()
+		if msg.X < tableW {
+			if m.showDefi {
+				m.defiCursor++
+				m.clampDefiCursor()
+			} else {
+				m.cursor++
+				m.clampCursor()
+			}
 		}
 	case tea.MouseButtonLeft:
+		x := msg.X
 		y := msg.Y
+
+		// Only handle clicks within the table/news area (not the sidebar)
+		if x >= tableW {
+			break
+		}
+
 		newsH := m.newsHeight()
 		tableEnd := 2 + m.visibleRows
 		newsStart := m.termH - 2 - newsH
@@ -445,10 +463,8 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 		} else if newsH > 0 && y >= newsStart && y < newsStart+newsH {
 			lineIdx := y - newsStart - 1 // -1 for separator line
-			if lineIdx >= 0 && lineIdx < 4 && len(m.newsArticles) > 0 {
-				startIdx := (m.newsScroll / 30) % len(m.newsArticles)
-				articleIdx := (startIdx + lineIdx) % len(m.newsArticles)
-				url := m.newsArticles[articleIdx].URL
+			if lineIdx >= 0 && lineIdx < 5 && lineIdx < len(m.newsArticles) {
+				url := m.newsArticles[lineIdx].URL
 				if url != "" {
 					return m, openURL(url)
 				}
