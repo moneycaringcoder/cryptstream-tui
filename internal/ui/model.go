@@ -129,8 +129,9 @@ type Model struct {
 	newsArticles []news.Article
 	newsScroll   int  // unused now, kept for compatibility
 	newsOn       bool // news band visible
-	newsFlash    int  // countdown ticks for new article flash
-	starFlash    int  // countdown ticks for star confirmation flash
+	newsFlash    int    // countdown ticks for new article flash
+	notifyMsg    string // current notification text
+	notifyTicks  int    // countdown ticks for notification
 	configUI     configState
 	showHelp     bool
 }

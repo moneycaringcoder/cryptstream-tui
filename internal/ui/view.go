@@ -86,7 +86,7 @@ func (m Model) renderTable(tableW int) string {
 	if btc, ok := m.tickers["BTCUSDT"]; ok {
 		btcPrice = btc.LastPrice
 	}
-	sb.WriteString(RenderFooter(s, len(m.tickers), m.connected, tableW, btcPrice, m.filterMode, m.searching, m.searchQuery, m.cursor, len(m.sorted), m.starFlash > 0))
+	sb.WriteString(RenderFooter(s, len(m.tickers), m.connected, tableW, btcPrice, m.filterMode, m.searching, m.searchQuery, m.cursor, len(m.sorted)))
 
 	return sb.String()
 }

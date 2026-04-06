@@ -208,7 +208,7 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, corr floa
 }
 
 // RenderFooter renders the bottom status bar.
-func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int, starFlash bool) string {
+func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int) string {
 	dot := s.DotConnected.Render("●")
 	status := "connected"
 	if !connected {
@@ -247,15 +247,11 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 	if searchQuery != "" {
 		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
 	}
-	starStr := ""
-	if starFlash {
-		starStr = "  •  " + s.Star.Render("★ starred!")
-	}
 	posStr := ""
 	if totalRows > 0 {
 		posStr = fmt.Sprintf("  %d/%d", cursorPos+1, totalRows)
 	}
-	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s%s", pairCount, filterLabel, searchLabel, starStr)
+	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
 	right := fmt.Sprintf("%s%s%s  %s %s ", posStr, "  ", btc+now, dot, status)
 
 	gap := termWidth - len(left) - len(right)

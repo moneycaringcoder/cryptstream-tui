@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
@@ -222,11 +221,23 @@ func (m Model) renderPanel() string {
 		}
 	}
 
-	// Fill remaining height to match table
+	// Fill remaining height, reserving 2 lines at bottom for notification box
 	totalNeeded := m.termH
-	for len(lines) < totalNeeded {
+	notiLines := 2 // separator + message
+	for len(lines) < totalNeeded-notiLines {
 		lines = append(lines, border)
 	}
+
+	// Notification box (always at very bottom of sidebar)
+	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+	if m.notifyMsg != "" {
+		notiStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
+		msg := truncateRunes(m.notifyMsg, inner)
+		lines = append(lines, border+" "+notiStyle.Render(msg))
+	} else {
+		lines = append(lines, border)
+	}
+
 	if len(lines) > totalNeeded {
 		lines = lines[:totalNeeded]
 	}
@@ -269,27 +280,12 @@ func (m Model) formatLiqCell(s Styles, l liquidation.Liq, colW int) string {
 		side = s.Positive.Render(sideStr)
 	}
 	val := l.FormatNotional()
-	ago := liqTimeAgo(l.Time)
-	plainLen := len(sym) + 1 + len(sideStr) + 1 + len(val) + 1 + len(ago)
+	plainLen := len(sym) + 1 + len(sideStr) + 1 + len(val)
 	gap := colW - plainLen
 	if gap < 0 {
 		gap = 0
 	}
-	dimAgo := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render(ago)
-	return sym + " " + side + " " + val + " " + dimAgo + strings.Repeat(" ", gap)
-}
-
-// liqTimeAgo returns a compact time-ago string for liquidations.
-func liqTimeAgo(t time.Time) string {
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	default:
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	}
+	return sym + " " + side + " " + val + strings.Repeat(" ", gap)
 }
 
 // padLeftPlain pads a plain string to the left with spaces.

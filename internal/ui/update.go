@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,8 +27,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		// Flash countdowns
-		if m.starFlash > 0 {
-			m.starFlash--
+		if m.notifyTicks > 0 {
+			m.notifyTicks--
+			if m.notifyTicks == 0 {
+				m.notifyMsg = ""
+			}
 		}
 		if m.newsFlash > 0 {
 			m.newsFlash--
@@ -262,8 +266,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.clampCursor()
 		case "s":
 			if m.cursor >= 0 && m.cursor < len(m.sorted) {
-				m.watchlist.Toggle(m.sorted[m.cursor].Symbol)
-				m.starFlash = 15 // ~1.5s at 100ms ticks
+				sym := m.sorted[m.cursor].Symbol
+				wasStarred := m.watchlist.IsStarred(sym)
+				m.watchlist.Toggle(sym)
+				if wasStarred {
+					m.notifyMsg = "★ unstarred " + strings.TrimSuffix(sym, "USDT")
+				} else {
+					m.notifyMsg = "★ starred " + strings.TrimSuffix(sym, "USDT")
+				}
+				m.notifyTicks = 20 // ~2s
 				// Auto-show sidebar so user sees the starred coin appear
 				if !m.panelOn {
 					m.panelOn = true
