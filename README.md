@@ -2,6 +2,8 @@
 
 Live cryptocurrency ticker in your terminal — real-time Binance WebSocket stream with a Bloomberg-style dark aesthetic.
 
+![preview](preview.gif)
+
 ## Features
 
 - Real-time USDT pair prices via Binance WebSocket
