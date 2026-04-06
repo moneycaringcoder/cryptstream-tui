@@ -62,18 +62,13 @@ func (m Model) renderPanel() string {
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
-	// Aggregate stats
-	lines = append(lines, border+" "+s.PanelLabel.Render("Volume")+
-		padLeftPlain(ticker.FormatVolume(ms.TotalVolume), inner-7))
-	lines = append(lines, border+" "+s.PanelLabel.Render("Avg Chg")+
-		padLeftPlain(formatChange(ms.AvgChange), inner-8))
-
-	gainerStr := s.Positive.Render(fmt.Sprintf("↑ %d", ms.GainerCount))
-	loserStr := s.Negative.Render(fmt.Sprintf("↓ %d", ms.LoserCount))
-	lines = append(lines, border+" "+gainerStr+"  "+loserStr)
-
-	lines = append(lines, border+" "+s.PanelLabel.Render("BTC Dom")+
-		padLeftPlain(fmt.Sprintf("%.1f%%", ms.BtcDominance), inner-8))
+	// Aggregate stats (compact 2-line layout)
+	line1 := s.PanelLabel.Render("Vol ") + ticker.FormatVolume(ms.TotalVolume) + "  " + s.PanelLabel.Render("Avg ") + formatChange(ms.AvgChange)
+	lines = append(lines, border+" "+line1)
+	line2 := s.Positive.Render(fmt.Sprintf("↑%d", ms.GainerCount)) + " " +
+		s.Negative.Render(fmt.Sprintf("↓%d", ms.LoserCount)) + "  " +
+		s.PanelLabel.Render("BTC ") + fmt.Sprintf("%.1f%%", ms.BtcDominance)
+	lines = append(lines, border+" "+line2)
 
 	// Vol Spikes (only if any are spiking)
 	if len(ms.VolSpikes) > 0 {
@@ -89,29 +84,30 @@ func (m Model) renderPanel() string {
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
-	// Top Gainers
+	// Top Gainers (up to 5)
 	lines = append(lines, border+" "+s.PanelLabel.Render("TOP GAINERS"))
-	for _, t := range ms.TopGainers {
+	limit := 5
+	for i, t := range ms.TopGainers {
+		if i >= limit {
+			break
+		}
 		sym := padRight(t.DisplaySymbol(), 8)
 		chg := s.Positive.Render(formatChange(t.PriceChangePercent))
 		lines = append(lines, border+"  "+sym+" "+chg)
-	}
-	for i := len(ms.TopGainers); i < topN; i++ {
-		lines = append(lines, border)
 	}
 
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
-	// Top Losers
+	// Top Losers (up to 5)
 	lines = append(lines, border+" "+s.PanelLabel.Render("TOP LOSERS"))
-	for _, t := range ms.TopLosers {
+	for i, t := range ms.TopLosers {
+		if i >= limit {
+			break
+		}
 		sym := padRight(t.DisplaySymbol(), 8)
 		chg := s.Negative.Render(formatChange(t.PriceChangePercent))
 		lines = append(lines, border+"  "+sym+" "+chg)
-	}
-	for i := len(ms.TopLosers); i < topN; i++ {
-		lines = append(lines, border)
 	}
 
 	// Fill remaining height to match table
