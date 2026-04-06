@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
@@ -27,6 +28,12 @@ type fundingMsg map[string]funding.Info
 
 // liqMsg carries a single liquidation event.
 type liqMsg liquidation.Liq
+
+// fngMsg carries the Fear & Greed index.
+type fngMsg feargreed.Index
+
+// fngTickMsg triggers a re-fetch of Fear & Greed.
+type fngTickMsg time.Time
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -94,6 +101,7 @@ type Model struct {
 	searchQuery  string     // current search text
 	panelOn      bool
 	fundingRates map[string]funding.Info
+	fearGreed    feargreed.Index
 	recentLiqs   []liquidation.Liq     // rolling feed, newest first, max 5
 	liqFlash     map[string]time.Time  // symbol -> flash expiry for liq indicator
 	marketStats  MarketStats
@@ -334,9 +342,9 @@ func (m *Model) clampCursor() {
 	}
 }
 
-// Init starts the 100ms tick command, signals connection ready, and fetches funding rates.
+// Init starts the 100ms tick command, signals connection ready, and fetches external data.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd())
+	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd(), fetchFngCmd())
 }
 
 func tickCmd() tea.Cmd {
@@ -363,6 +371,22 @@ func fundingTickCmd() tea.Cmd {
 
 // fundingTickMsg triggers a re-fetch of funding rates.
 type fundingTickMsg time.Time
+
+func fetchFngCmd() tea.Cmd {
+	return func() tea.Msg {
+		idx, err := feargreed.Fetch()
+		if err != nil {
+			return fngMsg(feargreed.Index{})
+		}
+		return fngMsg(idx)
+	}
+}
+
+func fngTickCmd() tea.Cmd {
+	return tea.Tick(30*time.Minute, func(t time.Time) tea.Msg {
+		return fngTickMsg(t)
+	})
+}
 
 // ConnCmd returns a Cmd that signals connection state.
 func ConnCmd(connected bool) tea.Cmd {

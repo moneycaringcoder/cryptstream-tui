@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
@@ -70,6 +71,36 @@ func (m Model) renderPanel() string {
 		s.Negative.Render(fmt.Sprintf("↓%d", ms.LoserCount)) + "  " +
 		s.PanelLabel.Render("BTC ") + fmt.Sprintf("%.1f%%", ms.BtcDominance)
 	lines = append(lines, border+" "+line2)
+
+	// Fear & Greed gauge
+	if m.fearGreed.Value > 0 {
+		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		fg := m.fearGreed
+		barW := inner - 1 // width for the gauge bar
+		filled := barW * fg.Value / 100
+		if filled > barW {
+			filled = barW
+		}
+		// Color: red (0-25), yellow (25-50), yellow-green (50-75), green (75-100)
+		var barColor string
+		switch {
+		case fg.Value < 25:
+			barColor = "#ff4444"
+		case fg.Value < 50:
+			barColor = "#ffaa00"
+		case fg.Value < 75:
+			barColor = "#aaff00"
+		default:
+			barColor = "#00ff88"
+		}
+		barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(barColor))
+		dimBlock := lipgloss.NewStyle().Foreground(s.ColorDim)
+		bar := barStyle.Render(strings.Repeat("█", filled)) + dimBlock.Render(strings.Repeat("░", barW-filled))
+		label := fmt.Sprintf(" %s %d", fg.Label, fg.Value)
+		labelStyled := barStyle.Render(label)
+		lines = append(lines, border+" "+bar)
+		lines = append(lines, border+labelStyled)
+	}
 
 	// Vol Spikes (only if any are spiking)
 	if len(ms.VolSpikes) > 0 {

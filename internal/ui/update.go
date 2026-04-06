@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
@@ -92,6 +93,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fundingTickMsg:
 		return m, fetchFundingCmd()
+
+	case fngMsg:
+		idx := feargreed.Index(msg)
+		if idx.Value > 0 {
+			m.fearGreed = idx
+		}
+		return m, fngTickCmd()
+
+	case fngTickMsg:
+		return m, fetchFngCmd()
 
 	case liqMsg:
 		l := liquidation.Liq(msg)
