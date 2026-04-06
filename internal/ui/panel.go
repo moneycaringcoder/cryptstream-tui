@@ -73,6 +73,17 @@ func (m Model) renderPanel() string {
 	lines = append(lines, border+" "+s.PanelLabel.Render("BTC Dom")+
 		padLeftPlain(fmt.Sprintf("%.1f%%", ms.BtcDominance), inner-8))
 
+	// Vol Spikes (only if any are spiking)
+	if len(ms.VolSpikes) > 0 {
+		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		lines = append(lines, border+" "+s.PanelLabel.Render("VOL SPIKES"))
+		for _, t := range ms.VolSpikes {
+			sym := padRight(t.DisplaySymbol(), 8)
+			ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
+			lines = append(lines, border+"  "+sym+" "+ratio)
+		}
+	}
+
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 

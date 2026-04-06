@@ -50,6 +50,7 @@ type MarketStats struct {
 	BtcDominance float64
 	TopGainers   []ticker.Ticker
 	TopLosers    []ticker.Ticker
+	VolSpikes    []ticker.Ticker // top 5 volume spikes by ratio
 	Pinned       []ticker.Ticker // BTC, ETH, SOL + starred symbols
 }
 
@@ -69,7 +70,8 @@ type Model struct {
 	styles       Styles
 	tickers      map[string]ticker.Ticker // keyed by Symbol
 	sorted       []ticker.Ticker          // current sorted view
-	priceHistory map[string][]float64     // recent prices per symbol for sparklines
+	priceHistory  map[string][]float64     // recent prices per symbol for sparklines
+	volumeHistory map[string][]float64    // recent volumes per symbol for spike detection
 	watchlist    *watchlist.Watchlist
 	connected    bool
 	termW        int
@@ -119,8 +121,9 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 	m := Model{
 		cfg:          cfg,
 		styles:       NewStyles(cfg),
-		tickers:      make(map[string]ticker.Ticker, len(initial)),
-		priceHistory: make(map[string][]float64, len(initial)),
+		tickers:       make(map[string]ticker.Ticker, len(initial)),
+		priceHistory:  make(map[string][]float64, len(initial)),
+		volumeHistory: make(map[string][]float64, len(initial)),
 		watchlist:    watchlist.New(),
 		connected:    false,
 		sortCol:      parseSortCol(cfg.DefaultSort),
@@ -131,6 +134,7 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
 		m.priceHistory[t.Symbol] = []float64{t.LastPrice}
+		m.volumeHistory[t.Symbol] = []float64{t.QuoteVolume}
 	}
 	m.rebuildSorted()
 	return m
@@ -244,6 +248,20 @@ func (m *Model) computeMarketStats() {
 		}
 	}
 
+	// Collect volume spikes sorted by ratio descending
+	var spikes []ticker.Ticker
+	for _, t := range m.tickers {
+		if t.VolumeSpiking {
+			spikes = append(spikes, t)
+		}
+	}
+	sort.Slice(spikes, func(i, j int) bool {
+		return spikes[i].VolumeSpikeRatio > spikes[j].VolumeSpikeRatio
+	})
+	if len(spikes) > 5 {
+		spikes = spikes[:5]
+	}
+
 	// Build pinned list: BTC, ETH, SOL always, then starred symbols
 	defaultPins := []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
 	pinSet := make(map[string]bool, len(defaultPins))
@@ -271,6 +289,7 @@ func (m *Model) computeMarketStats() {
 		BtcDominance: btcDom,
 		TopGainers:   topGainers,
 		TopLosers:    topLosers,
+		VolSpikes:    spikes,
 		Pinned:       pinned,
 	}
 }

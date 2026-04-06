@@ -30,6 +30,8 @@ type Styles struct {
 	DotReconnecting lipgloss.Style
 	PanelBorder    lipgloss.Style
 	PanelLabel     lipgloss.Style
+	VolSpike       lipgloss.Style
+	ColorVolSpike  lipgloss.Color
 }
 
 // NewStyles creates a Styles from the given config theme.
@@ -60,6 +62,8 @@ func NewStyles(cfg config.Config) Styles {
 	s.DotReconnecting = lipgloss.NewStyle().Foreground(s.ColorStar)
 	s.PanelBorder = lipgloss.NewStyle().Foreground(s.ColorSep)
 	s.PanelLabel = lipgloss.NewStyle().Foreground(s.ColorDim).Bold(true)
+	s.ColorVolSpike = lipgloss.Color("#ff8800")
+	s.VolSpike = lipgloss.NewStyle().Background(lipgloss.Color("#3a2a1a")).Foreground(s.ColorVolSpike)
 
 	return s
 }

@@ -29,6 +29,8 @@ type Ticker struct {
 	FlashUntil         time.Time
 	Flash              FlashDir
 	PriceDelta         float64 // change from previous update, shown briefly
+	VolumeSpiking      bool    // true when volume exceeds rolling average * multiplier
+	VolumeSpikeRatio   float64 // e.g. 2.3 means 2.3x the rolling average
 }
 
 // DisplaySymbol strips the USDT suffix for display (e.g. "BTCUSDT" → "BTC").

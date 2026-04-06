@@ -38,7 +38,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				t.Flash = ticker.FlashNeutral
 			}
 		}
-		m.tickers[t.Symbol] = t
 
 		// Track price history for sparklines.
 		maxHist := m.cfg.SparklineLength
@@ -48,6 +47,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h = h[len(h)-maxHist:]
 		}
 		m.priceHistory[t.Symbol] = h
+
+		// Track volume history for spike detection.
+		volWindow := m.cfg.VolumeWindow
+		if volWindow < 2 {
+			volWindow = 2
+		}
+		vh := m.volumeHistory[t.Symbol]
+		vh = append(vh, t.QuoteVolume)
+		if len(vh) > volWindow {
+			vh = vh[len(vh)-volWindow:]
+		}
+		m.volumeHistory[t.Symbol] = vh
+
+		// Compute volume spike.
+		if len(vh) >= 2 {
+			var sum float64
+			for _, v := range vh[:len(vh)-1] {
+				sum += v
+			}
+			avg := sum / float64(len(vh)-1)
+			if avg > 0 {
+				ratio := t.QuoteVolume / avg
+				mult := m.cfg.VolumeSpikeMultiplier
+				if mult <= 0 {
+					mult = 2.0
+				}
+				t.VolumeSpiking = ratio >= mult
+				t.VolumeSpikeRatio = ratio
+			}
+		}
+		m.tickers[t.Symbol] = t
 
 		m.rebuildSorted()
 		return m, nil

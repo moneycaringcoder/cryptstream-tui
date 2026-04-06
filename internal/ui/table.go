@@ -145,6 +145,8 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 		} else if isCursor {
 			if colIdx == 3 {
 				sb.WriteString(s.CursorRow.Foreground(changeColor(s, t.PriceChangePercent)).Render(padded))
+			} else if colIdx == 5 && t.VolumeSpiking {
+				sb.WriteString(s.CursorRow.Foreground(s.ColorVolSpike).Render(padded))
 			} else if colIdx == 1 && starred {
 				runes := []rune(padded)
 				sb.WriteString(s.CursorRow.Foreground(s.ColorStar).Render(string(runes[:1])) + s.CursorRow.Render(string(runes[1:])))
@@ -153,6 +155,8 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 			}
 		} else if colIdx == 3 {
 			sb.WriteString(changeStyle(s, t.PriceChangePercent).Render(padded))
+		} else if colIdx == 5 && t.VolumeSpiking {
+			sb.WriteString(s.VolSpike.Render(padded))
 		} else if colIdx == 1 && starred {
 			runes := []rune(padded)
 			sb.WriteString(s.Star.Render(string(runes[:1])) + string(runes[1:]))
@@ -180,7 +184,11 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
 	case 4:
 		return ""
 	case 5:
-		return ticker.FormatVolume(t.QuoteVolume)
+		vol := ticker.FormatVolume(t.QuoteVolume)
+		if t.VolumeSpiking {
+			vol += fmt.Sprintf(" %.1fx", t.VolumeSpikeRatio)
+		}
+		return vol
 	}
 	return ""
 }

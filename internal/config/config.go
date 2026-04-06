@@ -16,9 +16,13 @@ type Config struct {
 	SortAscending   bool     `json:"sort_ascending"`
 
 	// Behavior
-	DefaultFilter       string  `json:"default_filter"`
-	FilterCount         int     `json:"filter_count"`
-	FlashThreshold      float64 `json:"flash_threshold"`
+	DefaultFilter        string  `json:"default_filter"`
+	FilterCount          int     `json:"filter_count"`
+	FlashThreshold       float64 `json:"flash_threshold"`
+
+	// Detection
+	VolumeWindow         int     `json:"volume_window"`
+	VolumeSpikeMultiplier float64 `json:"volume_spike_multiplier"`
 
 	// Panel
 	PanelLayout string `json:"panel_layout"`
@@ -80,6 +84,9 @@ func Default() Config {
 		DefaultFilter:  "all",
 		FilterCount:    20,
 		FlashThreshold: 0.0001,
+
+		VolumeWindow:          50,
+		VolumeSpikeMultiplier: 2.0,
 
 		PanelLayout: "off",
 

@@ -80,6 +80,30 @@ var configFields = []configField{
 		return nil
 	}},
 
+	// Detection
+	{group: "Detection", label: "Volume Window", get: func(c config.Config) string { return strconv.Itoa(c.VolumeWindow) }, set: func(c *config.Config, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		if n < 2 {
+			return fmt.Errorf("must be at least 2")
+		}
+		c.VolumeWindow = n
+		return nil
+	}},
+	{group: "Detection", label: "Spike Multiplier", get: func(c config.Config) string { return strconv.FormatFloat(c.VolumeSpikeMultiplier, 'f', -1, 64) }, set: func(c *config.Config, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		if f <= 0 {
+			return fmt.Errorf("must be positive")
+		}
+		c.VolumeSpikeMultiplier = f
+		return nil
+	}},
+
 	// Panel
 	{group: "Panel", label: "Panel Layout", get: func(c config.Config) string { return c.PanelLayout }, set: func(c *config.Config, v string) error {
 		v = strings.ToLower(v)
