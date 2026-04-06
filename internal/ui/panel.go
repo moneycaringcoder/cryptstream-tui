@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -119,22 +120,14 @@ func (m Model) renderPanel() string {
 	if len(m.recentLiqs) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
-		for _, l := range m.recentLiqs {
-			sym := l.DisplaySymbol()
-			sideStr := l.Side
-			side := s.Negative.Render(sideStr)
-			if l.Side == "SHORT" {
-				side = s.Positive.Render(sideStr)
+		liqColW := (inner - 1) / 2 // 2 liqs per line
+		for i := 0; i < len(m.recentLiqs); i += 2 {
+			left := m.formatLiqCell(s, m.recentLiqs[i], liqColW)
+			right := ""
+			if i+1 < len(m.recentLiqs) {
+				right = m.formatLiqCell(s, m.recentLiqs[i+1], liqColW)
 			}
-			val := l.FormatNotional()
-			// content width = inner - 1 (for leading space after border)
-			contentW := inner - 1
-			plainLen := len(sym) + 1 + len(sideStr) + len(val)
-			gap := contentW - plainLen
-			if gap < 1 {
-				gap = 1
-			}
-			lines = append(lines, border+" "+sym+" "+side+strings.Repeat(" ", gap)+val)
+			lines = append(lines, border+" "+left+right)
 		}
 	}
 
@@ -174,6 +167,23 @@ func (m Model) formatRefLine(t ticker.Ticker, maxWidth int, fr funding.Info) str
 
 	line := sym + " " + price + " " + chgStyled + fundStr
 	return line
+}
+
+// formatLiqCell renders a single liquidation entry padded to colW.
+func (m Model) formatLiqCell(s Styles, l liquidation.Liq, colW int) string {
+	sym := l.DisplaySymbol()
+	sideStr := l.Side
+	side := s.Negative.Render(sideStr)
+	if l.Side == "SHORT" {
+		side = s.Positive.Render(sideStr)
+	}
+	val := l.FormatNotional()
+	plainLen := len(sym) + 1 + len(sideStr) + 1 + len(val)
+	gap := colW - plainLen
+	if gap < 0 {
+		gap = 0
+	}
+	return sym + " " + side + " " + val + strings.Repeat(" ", gap)
 }
 
 // padLeftPlain pads a plain string to the left with spaces.
