@@ -86,21 +86,30 @@ func (m Model) renderPanel() string {
 
 	// Gainers / Losers side by side
 	half := (inner - 1) / 2 // split inner width, -1 for gap
-	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", half))+s.PanelLabel.Render("LOSERS"))
+	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", half)+" LOSERS"))
 	limit := 5
 	for i := 0; i < limit; i++ {
-		left := strings.Repeat(" ", half)
-		right := ""
+		leftPad := strings.Repeat(" ", half)
+		rightStr := ""
 		if i < len(ms.TopGainers) {
 			g := ms.TopGainers[i]
-			left = padRight(g.DisplaySymbol(), 5) + s.Positive.Render(fmt.Sprintf("%+.0f%%", g.PriceChangePercent))
-			left = padRight(left, half)
+			sym := padRight(g.DisplaySymbol(), 5)
+			chg := fmt.Sprintf("%+.0f%%", g.PriceChangePercent)
+			// Pad the plain text to half width, then style the change part
+			plainLen := len(sym) + len(chg)
+			gap := ""
+			if plainLen < half {
+				gap = strings.Repeat(" ", half-plainLen)
+			}
+			leftPad = sym + s.Positive.Render(chg) + gap
 		}
 		if i < len(ms.TopLosers) {
 			l := ms.TopLosers[i]
-			right = padRight(l.DisplaySymbol(), 5) + s.Negative.Render(fmt.Sprintf("%.0f%%", l.PriceChangePercent))
+			sym := padRight(l.DisplaySymbol(), 5)
+			chg := fmt.Sprintf("%.0f%%", l.PriceChangePercent)
+			rightStr = sym + s.Negative.Render(chg)
 		}
-		lines = append(lines, border+" "+left+right)
+		lines = append(lines, border+" "+leftPad+rightStr)
 	}
 
 	// Liquidation feed (if any)
