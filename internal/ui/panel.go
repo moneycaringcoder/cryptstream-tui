@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -54,7 +55,8 @@ func (m Model) renderPanel() string {
 
 	// Pinned references (BTC, ETH, SOL + starred)
 	for _, t := range ms.Pinned {
-		lines = append(lines, border+" "+m.formatRefLine(t, inner))
+		fr := m.fundingRates[t.Symbol]
+		lines = append(lines, border+" "+m.formatRefLine(t, inner, fr))
 	}
 
 	// Separator
@@ -124,8 +126,8 @@ func (m Model) renderPanel() string {
 	return strings.Join(lines, "\n")
 }
 
-// formatRefLine formats a BTC/ETH reference for the panel.
-func (m Model) formatRefLine(t ticker.Ticker, maxWidth int) string {
+// formatRefLine formats a pinned coin reference for the panel.
+func (m Model) formatRefLine(t ticker.Ticker, maxWidth int, fr funding.Info) string {
 	s := m.styles
 	if t.Symbol == "" {
 		return ""
@@ -135,23 +137,18 @@ func (m Model) formatRefLine(t ticker.Ticker, maxWidth int) string {
 	chg := formatChange(t.PriceChangePercent)
 	chgStyled := changeStyle(s, t.PriceChangePercent).Render(chg)
 
-	// Mini sparkline (6 chars max)
-	sparkData := m.priceHistory[t.Symbol]
-	sparkStr := ""
-	if len(sparkData) > 1 {
-		maxSpark := 6
-		if maxSpark > maxWidth-len(sym)-len(price)-len(chg)-4 {
-			maxSpark = maxWidth - len(sym) - len(price) - len(chg) - 4
-		}
-		if maxSpark > 0 {
-			sparkStr, _ = renderSparkline(s, sparkData, maxSpark)
+	// Funding rate (if available)
+	fundStr := ""
+	if fr.Rate != 0 {
+		rateStr := fmt.Sprintf("%.3f%%", fr.Rate)
+		if fr.Rate < 0 {
+			fundStr = " " + s.Positive.Render(rateStr)
+		} else {
+			fundStr = " " + s.Negative.Render(rateStr)
 		}
 	}
 
-	line := sym + " " + price + " " + chgStyled
-	if sparkStr != "" {
-		line += " " + sparkStr
-	}
+	line := sym + " " + price + " " + chgStyled + fundStr
 	return line
 }
 

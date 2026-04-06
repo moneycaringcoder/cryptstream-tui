@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -81,6 +82,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.rebuildSorted()
 		return m, nil
+
+	case fundingMsg:
+		if msg != nil {
+			m.fundingRates = map[string]funding.Info(msg)
+		}
+		return m, fundingTickCmd()
+
+	case fundingTickMsg:
+		return m, fetchFundingCmd()
 
 	case connMsg:
 		m.connected = msg.connected

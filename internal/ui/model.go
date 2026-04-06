@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/watchlist"
 )
@@ -19,6 +20,9 @@ type tickerMsg ticker.Ticker
 
 // connMsg signals a connection state change.
 type connMsg struct{ connected bool }
+
+// fundingMsg carries updated funding rate data.
+type fundingMsg map[string]funding.Info
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -85,6 +89,7 @@ type Model struct {
 	searching    bool       // search input mode active
 	searchQuery  string     // current search text
 	panelOn      bool
+	fundingRates map[string]funding.Info
 	marketStats  MarketStats
 	configUI     configState
 	showHelp     bool
@@ -322,9 +327,9 @@ func (m *Model) clampCursor() {
 	}
 }
 
-// Init starts the 100ms tick command and signals connection ready.
+// Init starts the 100ms tick command, signals connection ready, and fetches funding rates.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), ConnCmd(true))
+	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd())
 }
 
 func tickCmd() tea.Cmd {
@@ -332,6 +337,25 @@ func tickCmd() tea.Cmd {
 		return tickMsg(t)
 	})
 }
+
+func fetchFundingCmd() tea.Cmd {
+	return func() tea.Msg {
+		rates, err := funding.Fetch()
+		if err != nil {
+			return fundingMsg(nil)
+		}
+		return fundingMsg(rates)
+	}
+}
+
+func fundingTickCmd() tea.Cmd {
+	return tea.Tick(5*time.Minute, func(t time.Time) tea.Msg {
+		return fundingTickMsg(t)
+	})
+}
+
+// fundingTickMsg triggers a re-fetch of funding rates.
+type fundingTickMsg time.Time
 
 // ConnCmd returns a Cmd that signals connection state.
 func ConnCmd(connected bool) tea.Cmd {
