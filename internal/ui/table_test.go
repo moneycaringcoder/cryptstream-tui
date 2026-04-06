@@ -20,7 +20,7 @@ func TestRenderRowContainsSymbol(t *testing.T) {
 		QuoteVolume:        4_200_000_000,
 		FlashUntil:         time.Time{},
 	}
-	row := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false)
+	row := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false, false)
 	if !strings.Contains(row, "BTC") {
 		t.Errorf("row should contain BTC symbol, got: %s", row)
 	}
@@ -34,10 +34,10 @@ func TestRenderRowFlash(t *testing.T) {
 	}
 
 	base.FlashUntil = time.Time{}
-	noFlash := ui.RenderRow(testStyles, 1, base, 120, false, nil, false)
+	noFlash := ui.RenderRow(testStyles, 1, base, 120, false, nil, false, false)
 
 	base.FlashUntil = time.Now().Add(1 * time.Second)
-	withFlash := ui.RenderRow(testStyles, 1, base, 120, false, nil, false)
+	withFlash := ui.RenderRow(testStyles, 1, base, 120, false, nil, false, false)
 
 	if !strings.Contains(withFlash, "BTC") {
 		t.Errorf("flash row should contain BTC symbol, got: %s", withFlash)
@@ -49,8 +49,8 @@ func TestRenderRowFlash(t *testing.T) {
 
 func TestRenderRowCursorHighlight(t *testing.T) {
 	tk := ticker.Ticker{Symbol: "ETHUSDT", LastPrice: 3500}
-	normal := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false)
-	cursor := ui.RenderRow(testStyles, 1, tk, 120, true, nil, false)
+	normal := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false, false)
+	cursor := ui.RenderRow(testStyles, 1, tk, 120, true, nil, false, false)
 	if normal == cursor {
 		t.Error("cursor row should differ from normal row")
 	}
@@ -59,7 +59,7 @@ func TestRenderRowCursorHighlight(t *testing.T) {
 func TestRenderSparklineInRow(t *testing.T) {
 	tk := ticker.Ticker{Symbol: "BTCUSDT", LastPrice: 67500, QuoteVolume: 1e9}
 	history := []float64{67000, 67100, 67200, 67300, 67400, 67500}
-	row := ui.RenderRow(testStyles, 1, tk, 120, false, history, false)
+	row := ui.RenderRow(testStyles, 1, tk, 120, false, history, false, false)
 	if !strings.ContainsAny(row, "▁▂▃▄▅▆▇█") {
 		t.Errorf("expected sparkline characters in row, got: %s", row)
 	}
@@ -67,8 +67,8 @@ func TestRenderSparklineInRow(t *testing.T) {
 
 func TestRenderRowStarred(t *testing.T) {
 	tk := ticker.Ticker{Symbol: "BTCUSDT", LastPrice: 67500}
-	normal := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false)
-	starred := ui.RenderRow(testStyles, 1, tk, 120, false, nil, true)
+	normal := ui.RenderRow(testStyles, 1, tk, 120, false, nil, false, false)
+	starred := ui.RenderRow(testStyles, 1, tk, 120, false, nil, true, false)
 	if !strings.Contains(starred, "★") {
 		t.Error("starred row should contain star indicator")
 	}

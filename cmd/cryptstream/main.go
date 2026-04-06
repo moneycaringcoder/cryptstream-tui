@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/binance"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ui"
 )
@@ -33,6 +34,12 @@ func main() {
 		binance.Stream(cfg.WsURL, ch, done, cfg.MaxBackoff.Unwrap())
 	}()
 
+	// 3b. Start liquidation WebSocket stream
+	liqCh := make(chan liquidation.Liq, 64)
+	go func() {
+		liquidation.Stream(liqCh, done, 100_000) // min $100K notional
+	}()
+
 	// 4. Build initial model and start Bubble Tea program
 	model := ui.New(initial, cfg)
 	p := tea.NewProgram(model, tea.WithAltScreen())
@@ -45,6 +52,18 @@ func main() {
 				return
 			case t := <-ch:
 				p.Send(ui.TickerMsgFrom(t))
+			}
+		}
+	}()
+
+	// 5b. Pump liquidation channel into Bubble Tea
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case l := <-liqCh:
+				p.Send(ui.LiqMsgFrom(l))
 			}
 		}
 	}()

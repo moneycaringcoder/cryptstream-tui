@@ -105,7 +105,7 @@ func RenderSeparator(s Styles, termWidth int) string {
 }
 
 // RenderRow renders a single ticker row.
-func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool) string {
+func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool, liqFlashing bool) string {
 	vis := visibleColumns(termWidth)
 	widths := colWidths(termWidth, vis)
 	flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
@@ -142,6 +142,8 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 
 		if flashing {
 			sb.WriteString(flashStyle(s, t.Flash).Render(padded))
+		} else if colIdx == 1 && liqFlashing {
+			sb.WriteString(s.LiqFlash.Render(padded))
 		} else if isCursor {
 			if colIdx == 3 {
 				sb.WriteString(s.CursorRow.Foreground(changeColor(s, t.PriceChangePercent)).Render(padded))

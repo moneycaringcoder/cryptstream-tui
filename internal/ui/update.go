@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -91,6 +92,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fundingTickMsg:
 		return m, fetchFundingCmd()
+
+	case liqMsg:
+		l := liquidation.Liq(msg)
+		// Add to recent liqs (newest first, max 5)
+		m.recentLiqs = append([]liquidation.Liq{l}, m.recentLiqs...)
+		if len(m.recentLiqs) > 5 {
+			m.recentLiqs = m.recentLiqs[:5]
+		}
+		// Flash the coin's symbol in the table for 2 seconds
+		m.liqFlash[l.Symbol] = time.Now().Add(2 * time.Second)
+		return m, nil
 
 	case connMsg:
 		m.connected = msg.connected

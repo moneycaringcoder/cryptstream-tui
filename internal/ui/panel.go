@@ -110,6 +110,21 @@ func (m Model) renderPanel() string {
 		lines = append(lines, border+"  "+sym+" "+chg)
 	}
 
+	// Liquidation feed (if any)
+	if len(m.recentLiqs) > 0 {
+		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
+		for _, l := range m.recentLiqs {
+			sym := padRight(l.DisplaySymbol(), 6)
+			side := s.Negative.Render(l.Side)
+			if l.Side == "SHORT" {
+				side = s.Positive.Render(l.Side)
+			}
+			val := l.FormatNotional()
+			lines = append(lines, border+"  "+sym+side+" "+val)
+		}
+	}
+
 	// Fill remaining height to match table
 	totalNeeded := m.termH
 	for len(lines) < totalNeeded {

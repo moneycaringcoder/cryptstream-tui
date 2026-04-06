@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/watchlist"
 )
@@ -23,6 +24,9 @@ type connMsg struct{ connected bool }
 
 // fundingMsg carries updated funding rate data.
 type fundingMsg map[string]funding.Info
+
+// liqMsg carries a single liquidation event.
+type liqMsg liquidation.Liq
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -90,6 +94,8 @@ type Model struct {
 	searchQuery  string     // current search text
 	panelOn      bool
 	fundingRates map[string]funding.Info
+	recentLiqs   []liquidation.Liq     // rolling feed, newest first, max 5
+	liqFlash     map[string]time.Time  // symbol -> flash expiry for liq indicator
 	marketStats  MarketStats
 	configUI     configState
 	showHelp     bool
@@ -135,6 +141,7 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 		sortAsc:      cfg.SortAscending,
 		filterMode:   parseFilterMode(cfg.DefaultFilter),
 		panelOn:      parsePanelOn(cfg.PanelLayout),
+		liqFlash:     make(map[string]time.Time),
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t
@@ -367,4 +374,9 @@ func ConnCmd(connected bool) tea.Cmd {
 // TickerMsgFrom converts a ticker.Ticker into a tickerMsg for sending to the program.
 func TickerMsgFrom(t ticker.Ticker) tea.Msg {
 	return tickerMsg(t)
+}
+
+// LiqMsgFrom converts a liquidation.Liq into a liqMsg for sending to the program.
+func LiqMsgFrom(l liquidation.Liq) tea.Msg {
+	return liqMsg(l)
 }

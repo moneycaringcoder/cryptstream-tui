@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -53,7 +54,8 @@ func (m Model) renderTable(tableW int) string {
 		isCursor := i == m.cursor
 		spark := m.priceHistory[t.Symbol]
 		starred := m.watchlist.IsStarred(t.Symbol)
-		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred))
+		liqFlash := time.Now().Before(m.liqFlash[t.Symbol])
+		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred, liqFlash))
 		sb.WriteByte('\n')
 	}
 
