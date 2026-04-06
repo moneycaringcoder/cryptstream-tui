@@ -85,29 +85,32 @@ func (m Model) renderPanel() string {
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
 	// Gainers / Losers side by side
-	half := (inner - 1) / 2 // split inner width, -1 for gap
-	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", half)+" LOSERS"))
+	colGap := 2
+	colW := (inner - colGap) / 2 // width available per column
+	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS"))
 	limit := 5
 	for i := 0; i < limit; i++ {
-		leftPad := strings.Repeat(" ", half)
+		leftPad := strings.Repeat(" ", colW+colGap)
 		rightStr := ""
 		if i < len(ms.TopGainers) {
 			g := ms.TopGainers[i]
-			sym := padRight(g.DisplaySymbol(), 5)
+			sym := g.DisplaySymbol()
 			chg := fmt.Sprintf("%+.0f%%", g.PriceChangePercent)
-			// Pad the plain text to half width, then style the change part
-			plainLen := len(sym) + len(chg)
-			gap := ""
-			if plainLen < half {
-				gap = strings.Repeat(" ", half-plainLen)
+			gap := colW - len(sym) - len(chg)
+			if gap < 1 {
+				gap = 1
 			}
-			leftPad = sym + s.Positive.Render(chg) + gap
+			leftPad = sym + strings.Repeat(" ", gap) + s.Positive.Render(chg) + strings.Repeat(" ", colGap)
 		}
 		if i < len(ms.TopLosers) {
 			l := ms.TopLosers[i]
-			sym := padRight(l.DisplaySymbol(), 5)
+			sym := l.DisplaySymbol()
 			chg := fmt.Sprintf("%.0f%%", l.PriceChangePercent)
-			rightStr = sym + s.Negative.Render(chg)
+			gap := colW - len(sym) - len(chg)
+			if gap < 1 {
+				gap = 1
+			}
+			rightStr = sym + strings.Repeat(" ", gap) + s.Negative.Render(chg)
 		}
 		lines = append(lines, border+" "+leftPad+rightStr)
 	}
@@ -117,13 +120,21 @@ func (m Model) renderPanel() string {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
 		for _, l := range m.recentLiqs {
-			sym := padRight(l.DisplaySymbol(), 6)
-			side := s.Negative.Render(l.Side)
+			sym := l.DisplaySymbol()
+			sideStr := l.Side
+			side := s.Negative.Render(sideStr)
 			if l.Side == "SHORT" {
-				side = s.Positive.Render(l.Side)
+				side = s.Positive.Render(sideStr)
 			}
 			val := l.FormatNotional()
-			lines = append(lines, border+"  "+sym+side+" "+val)
+			// content width = inner - 1 (for leading space after border)
+			contentW := inner - 1
+			plainLen := len(sym) + 1 + len(sideStr) + len(val)
+			gap := contentW - plainLen
+			if gap < 1 {
+				gap = 1
+			}
+			lines = append(lines, border+" "+sym+" "+side+strings.Repeat(" ", gap)+val)
 		}
 	}
 
