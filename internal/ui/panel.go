@@ -33,8 +33,16 @@ func (m Model) tableWidth() int {
 }
 
 // tableVisibleRows returns the number of visible rows.
+// newsHeight returns the number of lines the news band occupies.
+func (m Model) newsHeight() int {
+	if len(m.newsArticles) == 0 {
+		return 0
+	}
+	return 5 // separator + 4 headline lines
+}
+
 func (m Model) tableVisibleRows() int {
-	rows := m.termH - 4 // header + separator + footer separator + footer
+	rows := m.termH - 4 - m.newsHeight() // header + separator + footer separator + footer + news
 	if rows < 0 {
 		rows = 0
 	}

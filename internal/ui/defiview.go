@@ -90,11 +90,17 @@ func (m Model) renderDefiTable(tableW int) string {
 	}
 
 	// Fill remaining height
+	newsH := m.newsHeight()
 	filled := (end - scroll) + 3 // title + sep + col header
-	targetH := m.termH - 2       // minus footer sep + footer
+	targetH := m.termH - 2 - newsH // minus footer sep + footer + news
 	for filled < targetH {
 		sb.WriteByte('\n')
 		filled++
+	}
+
+	// News band
+	if newsH > 0 {
+		sb.WriteString(m.renderNewsBand(s, tableW))
 	}
 
 	// Footer

@@ -10,6 +10,7 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/news"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
@@ -42,6 +43,12 @@ type defiMsg []defiyields.Pool
 
 // defiTickMsg triggers a re-fetch of DeFi yields.
 type defiTickMsg time.Time
+
+// newsMsg carries news articles.
+type newsMsg []news.Article
+
+// newsTickMsg triggers a re-fetch of news.
+type newsTickMsg time.Time
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -118,6 +125,8 @@ type Model struct {
 	showDefi     bool
 	defiCursor   int
 	defiScroll   int
+	newsArticles []news.Article
+	newsScroll   int // horizontal scroll offset for news ticker
 	configUI     configState
 	showHelp     bool
 }
@@ -428,7 +437,7 @@ func (m *Model) clampCursor() {
 
 // Init starts the 100ms tick command, signals connection ready, and fetches external data.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd(), fetchFngCmd(), fetchDefiCmd())
+	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd(), fetchFngCmd(), fetchDefiCmd(), fetchNewsCmd())
 }
 
 func tickCmd() tea.Cmd {
@@ -485,6 +494,22 @@ func fetchDefiCmd() tea.Cmd {
 func defiTickCmd() tea.Cmd {
 	return tea.Tick(5*time.Minute, func(t time.Time) tea.Msg {
 		return defiTickMsg(t)
+	})
+}
+
+func fetchNewsCmd() tea.Cmd {
+	return func() tea.Msg {
+		articles, err := news.Fetch(20)
+		if err != nil {
+			return newsMsg(nil)
+		}
+		return newsMsg(articles)
+	}
+}
+
+func newsTickCmd() tea.Cmd {
+	return tea.Tick(5*time.Minute, func(t time.Time) tea.Msg {
+		return newsTickMsg(t)
 	})
 }
 

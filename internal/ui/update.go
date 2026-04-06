@@ -7,6 +7,7 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/news"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
@@ -24,6 +25,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		// Advance news ticker scroll every 5th tick (~500ms)
+		if len(m.newsArticles) > 0 {
+			m.newsScroll++
+		}
 		return m, tickCmd()
 
 	case tickerMsg:
@@ -113,6 +118,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case defiTickMsg:
 		return m, fetchDefiCmd()
+
+	case newsMsg:
+		if msg != nil {
+			m.newsArticles = []news.Article(msg)
+			m.newsScroll = 0
+			m.visibleRows = m.tableVisibleRows()
+			m.clampCursor()
+		}
+		return m, newsTickCmd()
+
+	case newsTickMsg:
+		return m, fetchNewsCmd()
 
 	case liqMsg:
 		l := liquidation.Liq(msg)
