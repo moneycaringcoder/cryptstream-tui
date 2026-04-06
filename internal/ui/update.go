@@ -1,10 +1,16 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/news"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -20,6 +26,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		// Flash countdowns
+		if m.notifyTicks > 0 {
+			m.notifyTicks--
+			if m.notifyTicks == 0 {
+				m.notifyMsg = ""
+			}
+		}
+		if m.newsFlash > 0 {
+			m.newsFlash--
+		}
 		return m, tickCmd()
 
 	case tickerMsg:
@@ -38,7 +54,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				t.Flash = ticker.FlashNeutral
 			}
 		}
-		m.tickers[t.Symbol] = t
 
 		// Track price history for sparklines.
 		maxHist := m.cfg.SparklineLength
@@ -49,12 +64,101 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.priceHistory[t.Symbol] = h
 
+		// Track volume history for spike detection.
+		volWindow := m.cfg.VolumeWindow
+		if volWindow < 2 {
+			volWindow = 2
+		}
+		vh := m.volumeHistory[t.Symbol]
+		vh = append(vh, t.QuoteVolume)
+		if len(vh) > volWindow {
+			vh = vh[len(vh)-volWindow:]
+		}
+		m.volumeHistory[t.Symbol] = vh
+
+		// Compute volume spike.
+		if len(vh) >= 2 {
+			var sum float64
+			for _, v := range vh[:len(vh)-1] {
+				sum += v
+			}
+			avg := sum / float64(len(vh)-1)
+			if avg > 0 {
+				ratio := t.QuoteVolume / avg
+				mult := m.cfg.VolumeSpikeMultiplier
+				if mult <= 0 {
+					mult = 2.0
+				}
+				t.VolumeSpiking = ratio >= mult
+				t.VolumeSpikeRatio = ratio
+			}
+		}
+		m.tickers[t.Symbol] = t
+
 		m.rebuildSorted()
+		return m, nil
+
+	case fundingMsg:
+		if msg != nil {
+			m.fundingRates = map[string]funding.Info(msg)
+		}
+		return m, fundingTickCmd()
+
+	case fundingTickMsg:
+		return m, fetchFundingCmd()
+
+	case fngMsg:
+		idx := feargreed.Index(msg)
+		if idx.Value > 0 {
+			m.fearGreed = idx
+		}
+		return m, fngTickCmd()
+
+	case fngTickMsg:
+		return m, fetchFngCmd()
+
+	case defiMsg:
+		if msg != nil {
+			m.defiPools = []defiyields.Pool(msg)
+		}
+		return m, defiTickCmd()
+
+	case defiTickMsg:
+		return m, fetchDefiCmd()
+
+	case newsMsg:
+		if msg != nil {
+			newArticles := []news.Article(msg)
+			// Detect if top article changed
+			if len(m.newsArticles) == 0 || (len(newArticles) > 0 && newArticles[0].Title != m.newsArticles[0].Title) {
+				m.newsFlash = 20 // ~2s flash
+			}
+			m.newsArticles = newArticles
+			m.visibleRows = m.tableVisibleRows()
+			m.clampCursor()
+		}
+		return m, newsTickCmd()
+
+	case newsTickMsg:
+		return m, fetchNewsCmd()
+
+	case liqMsg:
+		l := liquidation.Liq(msg)
+		// Add to recent liqs (newest first, max 10)
+		m.recentLiqs = append([]liquidation.Liq{l}, m.recentLiqs...)
+		if len(m.recentLiqs) > 10 {
+			m.recentLiqs = m.recentLiqs[:10]
+		}
+		// Flash the coin's symbol in the table for 2 seconds
+		m.liqFlash[l.Symbol] = time.Now().Add(2 * time.Second)
 		return m, nil
 
 	case connMsg:
 		m.connected = msg.connected
 		return m, nil
+
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 
 	case tea.KeyMsg:
 		// Help screen
@@ -62,6 +166,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "?", "esc", "q":
 				m.showHelp = false
+			}
+			return m, nil
+		}
+
+		// DeFi yields view
+		if m.showDefi {
+			switch msg.String() {
+			case "d", "esc", "q":
+				m.showDefi = false
+			case "j", "down":
+				m.defiCursor++
+				m.clampDefiCursor()
+			case "k", "up":
+				m.defiCursor--
+				m.clampDefiCursor()
+			case "g", "home":
+				m.defiCursor = 0
+				m.clampDefiCursor()
+			case "G", "end":
+				m.defiCursor = len(m.defiPools) - 1
+				m.clampDefiCursor()
 			}
 			return m, nil
 		}
@@ -117,6 +242,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "G", "end":
 			m.cursor = len(m.sorted) - 1
 			m.clampCursor()
+		case "ctrl+d":
+			half := m.visibleRows / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor += half
+			m.clampCursor()
+		case "ctrl+u":
+			half := m.visibleRows / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor -= half
+			m.clampCursor()
 		case "tab":
 			m.sortCol = (m.sortCol + 1) % sortColCount
 			m.rebuildSorted()
@@ -127,7 +266,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.clampCursor()
 		case "s":
 			if m.cursor >= 0 && m.cursor < len(m.sorted) {
-				m.watchlist.Toggle(m.sorted[m.cursor].Symbol)
+				sym := m.sorted[m.cursor].Symbol
+				wasStarred := m.watchlist.IsStarred(sym)
+				m.watchlist.Toggle(sym)
+				if wasStarred {
+					m.notifyMsg = "★ unstarred " + strings.TrimSuffix(sym, "USDT")
+				} else {
+					m.notifyMsg = "★ starred " + strings.TrimSuffix(sym, "USDT")
+				}
+				m.notifyTicks = 20 // ~2s
 				// Auto-show sidebar so user sees the starred coin appear
 				if !m.panelOn {
 					m.panelOn = true
@@ -154,6 +301,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.cfg.PanelLayout = "off"
 			}
+			m.visibleRows = m.tableVisibleRows()
+			m.clampCursor()
+		case "d":
+			m.showDefi = true
+			m.defiCursor = 0
+			m.defiScroll = 0
+		case "n":
+			m.newsOn = !m.newsOn
 			m.visibleRows = m.tableVisibleRows()
 			m.clampCursor()
 		case "?":
@@ -244,4 +399,85 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleMouse processes mouse events for table clicks and scroll wheel.
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.showHelp || m.configUI.active {
+		return m, nil
+	}
+
+	// Only handle press events, ignore release to prevent double-firing
+	if msg.Action == tea.MouseActionRelease {
+		return m, nil
+	}
+
+	tableW := m.tableWidth()
+
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		if msg.X < tableW {
+			if m.showDefi {
+				m.defiCursor--
+				m.clampDefiCursor()
+			} else {
+				m.cursor--
+				m.clampCursor()
+			}
+		}
+	case tea.MouseButtonWheelDown:
+		if msg.X < tableW {
+			if m.showDefi {
+				m.defiCursor++
+				m.clampDefiCursor()
+			} else {
+				m.cursor++
+				m.clampCursor()
+			}
+		}
+	case tea.MouseButtonLeft:
+		x := msg.X
+		y := msg.Y
+
+		// Only handle clicks within the table/news area (not the sidebar)
+		if x >= tableW {
+			break
+		}
+
+		newsH := m.newsHeight()
+		tableEnd := 2 + m.visibleRows
+		newsStart := m.termH - 2 - newsH
+		if y >= 2 && y < tableEnd {
+			if m.showDefi {
+				row := m.defiScroll + (y - 3) // -3: title + sep + col header
+				if row >= 0 && row < len(m.defiPools) {
+					m.defiCursor = row
+					m.clampDefiCursor()
+				}
+			} else {
+				row := m.offset + (y - 2)
+				if row < len(m.sorted) {
+					m.cursor = row
+					m.clampCursor()
+				}
+			}
+		} else if newsH > 0 && y >= newsStart && y < newsStart+newsH {
+			lineIdx := y - newsStart - 1 // -1 for separator line
+			if lineIdx >= 0 && lineIdx < 5 && lineIdx < len(m.newsArticles) {
+				url := m.newsArticles[lineIdx].URL
+				if url != "" {
+					return m, openURL(url)
+				}
+			}
+		}
+	}
+	return m, nil
+}
+
+// openURL returns a Cmd that opens a URL in the default browser.
+func openURL(url string) tea.Cmd {
+	return func() tea.Msg {
+		openBrowser(url)
+		return nil
+	}
 }

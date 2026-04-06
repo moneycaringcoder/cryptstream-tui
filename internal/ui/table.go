@@ -24,10 +24,11 @@ var columns = []column{
 	{name: "PRICE", minWidth: 0, rightAlign: true},
 	{name: "CHANGE", minWidth: 0, rightAlign: true},
 	{name: "TREND", minWidth: 70, rightAlign: false},
+	{name: "βBTC", minWidth: 90, rightAlign: true},
 	{name: "VOLUME", minWidth: 0, rightAlign: true},
 }
 
-var colProps = []int{5, 14, 22, 12, 25, 16}
+var colProps = []int{5, 14, 20, 10, 22, 8, 15}
 
 func visibleColumns(termWidth int) []int {
 	var vis []int
@@ -59,6 +60,8 @@ func sortIndicator(colIdx int, sortCol SortCol, sortAsc bool) string {
 	case 3:
 		match = SortChange
 	case 5:
+		match = SortCorrelation
+	case 6:
 		match = SortVolume
 	default:
 		if colIdx == 1 {
@@ -105,7 +108,7 @@ func RenderSeparator(s Styles, termWidth int) string {
 }
 
 // RenderRow renders a single ticker row.
-func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool) string {
+func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool, sparkData []float64, starred bool, liqFlashing bool, corr float64) string {
 	vis := visibleColumns(termWidth)
 	widths := colWidths(termWidth, vis)
 	flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
@@ -127,7 +130,7 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 			continue
 		}
 
-		cell := cellValue(colIdx, rank, t, sparkData)
+		cell := cellValue(colIdx, rank, t, sparkData, corr)
 		if colIdx == 1 && starred {
 			cell = "★ " + cell
 		}
@@ -142,9 +145,15 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 
 		if flashing {
 			sb.WriteString(flashStyle(s, t.Flash).Render(padded))
+		} else if liqFlashing {
+			sb.WriteString(s.LiqFlash.Render(padded))
 		} else if isCursor {
 			if colIdx == 3 {
 				sb.WriteString(s.CursorRow.Foreground(changeColor(s, t.PriceChangePercent)).Render(padded))
+			} else if colIdx == 5 {
+				sb.WriteString(s.CursorRow.Foreground(corrColor(s, corr)).Render(padded))
+			} else if colIdx == 6 && t.VolumeSpiking {
+				sb.WriteString(s.CursorRow.Foreground(s.ColorVolSpike).Render(padded))
 			} else if colIdx == 1 && starred {
 				runes := []rune(padded)
 				sb.WriteString(s.CursorRow.Foreground(s.ColorStar).Render(string(runes[:1])) + s.CursorRow.Render(string(runes[1:])))
@@ -153,6 +162,10 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 			}
 		} else if colIdx == 3 {
 			sb.WriteString(changeStyle(s, t.PriceChangePercent).Render(padded))
+		} else if colIdx == 5 {
+			sb.WriteString(corrStyle(s, corr).Render(padded))
+		} else if colIdx == 6 && t.VolumeSpiking {
+			sb.WriteString(s.VolSpike.Render(padded))
 		} else if colIdx == 1 && starred {
 			runes := []rune(padded)
 			sb.WriteString(s.Star.Render(string(runes[:1])) + string(runes[1:]))
@@ -163,7 +176,7 @@ func RenderRow(s Styles, rank int, t ticker.Ticker, termWidth int, isCursor bool
 	return sb.String()
 }
 
-func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
+func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, corr float64) string {
 	switch colIdx {
 	case 0:
 		return fmt.Sprintf("%d", rank)
@@ -180,13 +193,22 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64) string {
 	case 4:
 		return ""
 	case 5:
-		return ticker.FormatVolume(t.QuoteVolume)
+		if t.Symbol == "BTCUSDT" {
+			return "—"
+		}
+		return fmt.Sprintf("%.2f", corr)
+	case 6:
+		vol := ticker.FormatVolume(t.QuoteVolume)
+		if t.VolumeSpiking {
+			vol += fmt.Sprintf(" %.1fx", t.VolumeSpikeRatio)
+		}
+		return vol
 	}
 	return ""
 }
 
 // RenderFooter renders the bottom status bar.
-func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string) string {
+func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int) string {
 	dot := s.DotConnected.Render("●")
 	status := "connected"
 	if !connected {
@@ -225,8 +247,12 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 	if searchQuery != "" {
 		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
 	}
+	posStr := ""
+	if totalRows > 0 {
+		posStr = fmt.Sprintf("  %d/%d", cursorPos+1, totalRows)
+	}
 	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
-	right := fmt.Sprintf("%s%s  %s %s ", btc, now, dot, status)
+	right := fmt.Sprintf("%s%s%s  %s %s ", posStr, "  ", btc+now, dot, status)
 
 	gap := termWidth - len(left) - len(right)
 	if gap < 1 {
@@ -290,6 +316,30 @@ func flashStyle(s Styles, dir ticker.FlashDir) lipgloss.Style {
 		return s.FlashNegative
 	default:
 		return lipgloss.NewStyle()
+	}
+}
+
+func corrColor(s Styles, c float64) lipgloss.Color {
+	switch {
+	case c > 0.7:
+		return s.ColorGreen
+	case c < -0.3:
+		return s.ColorRed
+	default:
+		return s.ColorDim
+	}
+}
+
+func corrStyle(s Styles, c float64) lipgloss.Style {
+	switch {
+	case c > 0.7:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff88"))
+	case c > 0.4:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#88cc88"))
+	case c < -0.3:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4444"))
+	default:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
 	}
 }
 

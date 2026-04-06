@@ -18,18 +18,24 @@ var helpSections = []struct {
 		entries: []helpEntry{
 			{"j / ↓", "Move cursor down"},
 			{"k / ↑", "Move cursor up"},
+			{"ctrl+d", "Half page down"},
+			{"ctrl+u", "Half page up"},
 			{"g / Home", "Jump to top"},
 			{"G / End", "Jump to bottom"},
+			{"mouse wheel", "Scroll up/down"},
+			{"click", "Select row / open news link"},
 		},
 	},
 	{
 		title: "DATA",
 		entries: []helpEntry{
-			{"tab", "Cycle sort column (volume → price → change → symbol)"},
+			{"tab", "Cycle sort column (vol → price → chg → sym → βBTC)"},
 			{"shift+tab", "Cycle sort column backwards"},
 			{"s", "Star / unstar selected symbol"},
 			{"f", "Cycle filter (all → gainers → losers)"},
-			{"p", "Toggle panel (off → right → bottom)"},
+			{"p", "Toggle sidebar panel"},
+			{"n", "Toggle news ticker band"},
+			{"d", "Toggle DeFi yields overlay"},
 		},
 	},
 	{
