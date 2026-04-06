@@ -84,30 +84,23 @@ func (m Model) renderPanel() string {
 	// Separator
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 
-	// Top Gainers (up to 5)
-	lines = append(lines, border+" "+s.PanelLabel.Render("TOP GAINERS"))
+	// Gainers / Losers side by side
+	half := (inner - 1) / 2 // split inner width, -1 for gap
+	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", half))+s.PanelLabel.Render("LOSERS"))
 	limit := 5
-	for i, t := range ms.TopGainers {
-		if i >= limit {
-			break
+	for i := 0; i < limit; i++ {
+		left := strings.Repeat(" ", half)
+		right := ""
+		if i < len(ms.TopGainers) {
+			g := ms.TopGainers[i]
+			left = padRight(g.DisplaySymbol(), 5) + s.Positive.Render(fmt.Sprintf("%+.0f%%", g.PriceChangePercent))
+			left = padRight(left, half)
 		}
-		sym := padRight(t.DisplaySymbol(), 8)
-		chg := s.Positive.Render(formatChange(t.PriceChangePercent))
-		lines = append(lines, border+"  "+sym+" "+chg)
-	}
-
-	// Separator
-	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-
-	// Top Losers (up to 5)
-	lines = append(lines, border+" "+s.PanelLabel.Render("TOP LOSERS"))
-	for i, t := range ms.TopLosers {
-		if i >= limit {
-			break
+		if i < len(ms.TopLosers) {
+			l := ms.TopLosers[i]
+			right = padRight(l.DisplaySymbol(), 5) + s.Negative.Render(fmt.Sprintf("%.0f%%", l.PriceChangePercent))
 		}
-		sym := padRight(t.DisplaySymbol(), 8)
-		chg := s.Negative.Render(formatChange(t.PriceChangePercent))
-		lines = append(lines, border+"  "+sym+" "+chg)
+		lines = append(lines, border+" "+left+right)
 	}
 
 	// Liquidation feed (if any)
