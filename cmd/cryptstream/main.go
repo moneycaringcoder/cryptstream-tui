@@ -37,7 +37,7 @@ func main() {
 	// 3b. Start liquidation WebSocket stream
 	liqCh := make(chan liquidation.Liq, 64)
 	go func() {
-		liquidation.Stream(liqCh, done, 100_000) // min $100K notional
+		liquidation.Stream(liqCh, done, cfg.LiqMinNotional)
 	}()
 
 	// 4. Build initial model and start Bubble Tea program

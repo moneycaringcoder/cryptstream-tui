@@ -103,6 +103,17 @@ var configFields = []configField{
 		c.VolumeSpikeMultiplier = f
 		return nil
 	}},
+	{group: "Detection", label: "Liq Min Notional", get: func(c config.Config) string { return strconv.FormatFloat(c.LiqMinNotional, 'f', 0, 64) }, set: func(c *config.Config, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		if f < 0 {
+			return fmt.Errorf("must be non-negative")
+		}
+		c.LiqMinNotional = f
+		return nil
+	}},
 
 	// Panel
 	{group: "Panel", label: "Panel Layout", get: func(c config.Config) string { return c.PanelLayout }, set: func(c *config.Config, v string) error {

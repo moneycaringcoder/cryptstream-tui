@@ -21,8 +21,9 @@ type Config struct {
 	FlashThreshold       float64 `json:"flash_threshold"`
 
 	// Detection
-	VolumeWindow         int     `json:"volume_window"`
+	VolumeWindow          int     `json:"volume_window"`
 	VolumeSpikeMultiplier float64 `json:"volume_spike_multiplier"`
+	LiqMinNotional        float64 `json:"liq_min_notional"`
 
 	// Panel
 	PanelLayout string `json:"panel_layout"`
@@ -87,6 +88,7 @@ func Default() Config {
 
 		VolumeWindow:          50,
 		VolumeSpikeMultiplier: 2.0,
+		LiqMinNotional:        100_000,
 
 		PanelLayout: "off",
 
