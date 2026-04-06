@@ -6,23 +6,63 @@ Live cryptocurrency ticker in your terminal — real-time Binance WebSocket stre
 
 - Real-time USDT pair prices via Binance WebSocket
 - Per-tick heatmap sparklines (green/red per bar)
-- Watchlist with persistent starred symbols pinned to top
+- Market Pulse sidebar with BTC/ETH/SOL, aggregate stats, top 10 gainers/losers
+- Watchlist — star any coin to pin it in the sidebar
 - Gainers/losers filter
 - Live search by symbol
 - Price delta flash on updates (green up, red down)
 - Sortable columns (volume, price, change, symbol)
 - Responsive layout — columns adapt to terminal width
-- In-app settings editor with live theme preview
+- In-app settings editor with live preview
 - Configurable colors, flash duration, sparkline length, and more
 - Help screen with grouped keybind reference
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install moneycaringcoder/tap/cryptstream
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add moneycaringcoder https://github.com/moneycaringcoder/scoop-bucket
+scoop install cryptstream
+```
+
+### Go
+
 ```bash
 go install github.com/moneycaringcoder/cryptstream-tui/cmd/cryptstream@latest
 ```
 
-Or download a pre-built binary from [Releases](https://github.com/moneycaringcoder/cryptstream-tui/releases).
+Requires Go 1.24+. The binary is installed to `$GOPATH/bin` (usually `~/go/bin`).
+
+### Pre-built binaries
+
+Download the latest release for your platform from [Releases](https://github.com/moneycaringcoder/cryptstream-tui/releases). Extract and place the binary somewhere on your `PATH`.
+
+## Updating
+
+### Homebrew
+
+```bash
+brew upgrade cryptstream
+```
+
+### Scoop
+
+```powershell
+scoop update cryptstream
+```
+
+### Go
+
+```bash
+go install github.com/moneycaringcoder/cryptstream-tui/cmd/cryptstream@latest
+```
 
 ## Run from source
 
@@ -39,8 +79,9 @@ go run ./cmd/cryptstream
 | `j` / `k` | Scroll up/down |
 | `g` / `G` | Jump to top/bottom |
 | `tab` / `shift+tab` | Cycle sort column |
-| `s` | Star/unstar symbol |
+| `s` | Star/unstar symbol (adds to sidebar) |
 | `f` | Cycle filter (all/gainers/losers) |
+| `p` | Toggle sidebar panel |
 | `/` | Search symbols |
 | `c` | Open settings editor |
 | `?` | Toggle help screen |
@@ -51,7 +92,7 @@ go run ./cmd/cryptstream
 
 Settings are stored in `%APPDATA%/cryptstream/config.json` (Windows) or `~/.config/cryptstream/config.json` (Linux/macOS). You can edit them directly or press `c` in the app.
 
-Configurable options include flash duration, sparkline length, sort defaults, filter count, flash threshold, connection URLs, and a full 9-color theme.
+Configurable options include flash duration, sparkline length, sort defaults, filter count, flash threshold, panel layout, connection URLs, and a full 9-color theme. Changes in the settings editor apply immediately.
 
 ## Stack
 
