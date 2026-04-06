@@ -22,7 +22,12 @@ func (m Model) View() string {
 	}
 
 	tableW := m.tableWidth()
-	tableStr := m.renderTable(tableW)
+	var tableStr string
+	if m.showDefi {
+		tableStr = m.renderDefiTable(tableW)
+	} else {
+		tableStr = m.renderTable(tableW)
+	}
 
 	if !m.panelVisible() {
 		return tableStr

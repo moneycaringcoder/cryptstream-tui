@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
@@ -34,6 +35,12 @@ type fngMsg feargreed.Index
 
 // fngTickMsg triggers a re-fetch of Fear & Greed.
 type fngTickMsg time.Time
+
+// defiMsg carries DeFi yield pool data.
+type defiMsg []defiyields.Pool
+
+// defiTickMsg triggers a re-fetch of DeFi yields.
+type defiTickMsg time.Time
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -105,6 +112,10 @@ type Model struct {
 	recentLiqs   []liquidation.Liq     // rolling feed, newest first, max 5
 	liqFlash     map[string]time.Time  // symbol -> flash expiry for liq indicator
 	marketStats  MarketStats
+	defiPools    []defiyields.Pool
+	showDefi     bool
+	defiCursor   int
+	defiScroll   int
 	configUI     configState
 	showHelp     bool
 }
@@ -319,6 +330,30 @@ func (m *Model) PriceHistory(symbol string) []float64 {
 	return m.priceHistory[symbol]
 }
 
+// clampDefiCursor keeps defi cursor and scroll within valid bounds.
+func (m *Model) clampDefiCursor() {
+	if len(m.defiPools) == 0 {
+		m.defiCursor = 0
+		m.defiScroll = 0
+		return
+	}
+	if m.defiCursor < 0 {
+		m.defiCursor = 0
+	}
+	if m.defiCursor >= len(m.defiPools) {
+		m.defiCursor = len(m.defiPools) - 1
+	}
+	visRows := m.visibleRows - 1 // title row takes one extra
+	if visRows > 0 {
+		if m.defiCursor < m.defiScroll {
+			m.defiScroll = m.defiCursor
+		}
+		if m.defiCursor >= m.defiScroll+visRows {
+			m.defiScroll = m.defiCursor - visRows + 1
+		}
+	}
+}
+
 // clampCursor keeps cursor and offset within valid bounds.
 func (m *Model) clampCursor() {
 	if len(m.sorted) == 0 {
@@ -344,7 +379,7 @@ func (m *Model) clampCursor() {
 
 // Init starts the 100ms tick command, signals connection ready, and fetches external data.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd(), fetchFngCmd())
+	return tea.Batch(tickCmd(), ConnCmd(true), fetchFundingCmd(), fetchFngCmd(), fetchDefiCmd())
 }
 
 func tickCmd() tea.Cmd {
@@ -385,6 +420,22 @@ func fetchFngCmd() tea.Cmd {
 func fngTickCmd() tea.Cmd {
 	return tea.Tick(30*time.Minute, func(t time.Time) tea.Msg {
 		return fngTickMsg(t)
+	})
+}
+
+func fetchDefiCmd() tea.Cmd {
+	return func() tea.Msg {
+		pools, err := defiyields.Fetch(100, 1_000_000)
+		if err != nil {
+			return defiMsg(nil)
+		}
+		return defiMsg(pools)
+	}
+}
+
+func defiTickCmd() tea.Cmd {
+	return tea.Tick(5*time.Minute, func(t time.Time) tea.Msg {
+		return defiTickMsg(t)
 	})
 }
 

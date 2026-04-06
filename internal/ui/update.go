@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
@@ -104,6 +105,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fngTickMsg:
 		return m, fetchFngCmd()
 
+	case defiMsg:
+		if msg != nil {
+			m.defiPools = []defiyields.Pool(msg)
+		}
+		return m, defiTickCmd()
+
+	case defiTickMsg:
+		return m, fetchDefiCmd()
+
 	case liqMsg:
 		l := liquidation.Liq(msg)
 		// Add to recent liqs (newest first, max 5)
@@ -125,6 +135,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "?", "esc", "q":
 				m.showHelp = false
+			}
+			return m, nil
+		}
+
+		// DeFi yields view
+		if m.showDefi {
+			switch msg.String() {
+			case "d", "esc", "q":
+				m.showDefi = false
+			case "j", "down":
+				m.defiCursor++
+				m.clampDefiCursor()
+			case "k", "up":
+				m.defiCursor--
+				m.clampDefiCursor()
+			case "g", "home":
+				m.defiCursor = 0
+				m.clampDefiCursor()
+			case "G", "end":
+				m.defiCursor = len(m.defiPools) - 1
+				m.clampDefiCursor()
 			}
 			return m, nil
 		}
@@ -219,6 +250,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.visibleRows = m.tableVisibleRows()
 			m.clampCursor()
+		case "d":
+			m.showDefi = true
+			m.defiCursor = 0
+			m.defiScroll = 0
 		case "?":
 			m.showHelp = true
 		case "esc":
