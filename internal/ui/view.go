@@ -100,14 +100,7 @@ func (m Model) renderNewsBand(s Styles, w int) string {
 		return ""
 	}
 
-	// Separator with label
-	label := " NEWS "
-	sepW := w - len(label)
-	leftSep := sepW / 2
-	rightSep := sepW - leftSep
-	sb.WriteString(s.Sep.Render(strings.Repeat("─", leftSep)))
-	sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true).Render(label))
-	sb.WriteString(s.Sep.Render(strings.Repeat("─", rightSep)))
+	sb.WriteString(s.Sep.Render(strings.Repeat("─", w)))
 	sb.WriteByte('\n')
 
 	newsLines := 4

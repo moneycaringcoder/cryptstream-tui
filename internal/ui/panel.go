@@ -80,6 +80,19 @@ func (m Model) renderPanel() string {
 		s.PanelLabel.Render("BTC ") + fmt.Sprintf("%.1f%%", ms.BtcDominance)
 	lines = append(lines, border+" "+line2)
 
+	// Market breadth bar (gainers vs losers visual)
+	total := ms.GainerCount + ms.LoserCount
+	if total > 0 {
+		barW := inner - 1
+		greenW := barW * ms.GainerCount / total
+		if greenW > barW {
+			greenW = barW
+		}
+		redW := barW - greenW
+		bar := s.Positive.Render(strings.Repeat("█", greenW)) + s.Negative.Render(strings.Repeat("█", redW))
+		lines = append(lines, border+" "+bar)
+	}
+
 	// Fear & Greed gauge
 	if m.fearGreed.Value > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
@@ -167,6 +180,31 @@ func (m Model) renderPanel() string {
 				right = m.formatLiqCell(s, m.recentLiqs[i+1], liqColW)
 			}
 			lines = append(lines, border+" "+left+right)
+		}
+	}
+
+	// News preview (latest 3 headlines)
+	if len(m.newsArticles) > 0 {
+		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		newsLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
+		lines = append(lines, border+" "+newsLabel.Render("NEWS"))
+		newsCount := 3
+		if newsCount > len(m.newsArticles) {
+			newsCount = len(m.newsArticles)
+		}
+		srcStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00"))
+		titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#999999"))
+		for i := 0; i < newsCount; i++ {
+			a := m.newsArticles[i]
+			// Source on its own short line
+			lines = append(lines, border+" "+srcStyle.Render(truncateRunes(a.Source, inner)))
+			// Title wrapped to inner width
+			title := a.Title
+			titleRunes := []rune(title)
+			if len(titleRunes) > inner-1 {
+				title = string(titleRunes[:inner-2]) + "…"
+			}
+			lines = append(lines, border+" "+titleStyle.Render(title))
 		}
 	}
 

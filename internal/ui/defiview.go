@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -14,7 +15,8 @@ func (m Model) renderDefiTable(tableW int) string {
 
 	// Header
 	title := " DeFi Yields — Pools by APY (TVL ≥ $1M)"
-	sb.WriteString(s.Header.Render(padRight(title, tableW)))
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
+	sb.WriteString(titleStyle.Render(padRight(title, tableW)))
 	sb.WriteByte('\n')
 	sb.WriteString(RenderSeparator(s, tableW))
 	sb.WriteByte('\n')
