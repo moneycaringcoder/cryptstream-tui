@@ -11,10 +11,12 @@ const url = "https://api.coingecko.com/api/v3/news?page=1"
 
 // Article holds a single news headline.
 type Article struct {
-	Title   string
-	Source  string
-	URL     string
-	Time    time.Time
+	Title       string
+	Description string
+	Author      string
+	Source      string
+	URL         string
+	Time        time.Time
 }
 
 type rawResponse struct {
@@ -22,10 +24,12 @@ type rawResponse struct {
 }
 
 type rawArticle struct {
-	Title     string `json:"title"`
-	NewsSite  string `json:"news_site"`
-	URL       string `json:"url"`
-	CreatedAt int64  `json:"created_at"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	NewsSite    string `json:"news_site"`
+	URL         string `json:"url"`
+	CreatedAt   int64  `json:"created_at"`
 }
 
 // Fetch retrieves the latest crypto news headlines.
@@ -52,10 +56,12 @@ func Fetch(limit int) ([]Article, error) {
 	articles := make([]Article, len(raw.Data))
 	for i, r := range raw.Data {
 		articles[i] = Article{
-			Title:  r.Title,
-			Source: r.NewsSite,
-			URL:    r.URL,
-			Time:   time.Unix(r.CreatedAt, 0),
+			Title:       r.Title,
+			Description: r.Description,
+			Author:      r.Author,
+			Source:       r.NewsSite,
+			URL:         r.URL,
+			Time:        time.Unix(r.CreatedAt, 0),
 		}
 	}
 	return articles, nil

@@ -127,11 +127,20 @@ type Model struct {
 	defiCursor   int
 	defiScroll   int
 	newsArticles []news.Article
-	newsScroll   int  // unused now, kept for compatibility
-	newsOn       bool // news band visible
+	newsOn       bool   // news band visible
+	newsCursor   int    // selected news headline (-1 = not focused)
 	newsFlash    int    // countdown ticks for new article flash
+	showArticle  bool   // article reader overlay active
+	showDetail   bool   // coin detail overlay active
 	notifyMsg    string // current notification text
 	notifyTicks  int    // countdown ticks for notification
+	lastClickRow int       // last clicked row index for double-click detection
+	lastClickAt  time.Time // time of last click for double-click detection
+	// Collapsible sidebar sections
+	sidebarCollapsed map[string]bool
+	// Vim-style command bar
+	commandMode  bool
+	commandBuf   string
 	configUI     configState
 	showHelp     bool
 }
@@ -178,9 +187,11 @@ func New(initial []ticker.Ticker, cfg config.Config) Model {
 		sortAsc:      cfg.SortAscending,
 		filterMode:   parseFilterMode(cfg.DefaultFilter),
 		panelOn:      parsePanelOn(cfg.PanelLayout),
-		liqFlash:     make(map[string]time.Time),
-		correlations: make(map[string]float64),
-		newsOn:       true,
+		liqFlash:          make(map[string]time.Time),
+		correlations:      make(map[string]float64),
+		sidebarCollapsed:  make(map[string]bool),
+		newsOn:            true,
+		newsCursor:        -1,
 	}
 	for _, t := range initial {
 		m.tickers[t.Symbol] = t

@@ -207,8 +207,24 @@ func cellValue(colIdx, rank int, t ticker.Ticker, sparkData []float64, corr floa
 	return ""
 }
 
+// sortColName returns a human-readable name for the sort column.
+func sortColName(col SortCol) string {
+	switch col {
+	case SortPrice:
+		return "price"
+	case SortChange:
+		return "change"
+	case SortSymbol:
+		return "symbol"
+	case SortCorrelation:
+		return "βBTC"
+	default:
+		return "volume"
+	}
+}
+
 // RenderFooter renders the bottom status bar.
-func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int) string {
+func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPrice float64, filter FilterMode, searching bool, searchQuery string, cursorPos int, totalRows int, sortCol SortCol, sortAsc bool, newsFocused bool, commandMode bool, commandBuf string) string {
 	dot := s.DotConnected.Render("●")
 	status := "connected"
 	if !connected {
@@ -220,6 +236,20 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 	btc := ""
 	if btcPrice > 0 {
 		btc = fmt.Sprintf("BTC %s  •  ", ticker.FormatPrice(btcPrice))
+	}
+
+	if commandMode {
+		buf := commandBuf
+		if buf == "" {
+			buf = "_"
+		}
+		left := fmt.Sprintf(" :%s", buf)
+		right := "esc cancel  enter run "
+		gap := termWidth - len(left) - len(right)
+		if gap < 1 {
+			gap = 1
+		}
+		return s.Footer.Render(left + strings.Repeat(" ", gap) + right)
 	}
 
 	if searching {
@@ -236,25 +266,40 @@ func RenderFooter(s Styles, pairCount int, connected bool, termWidth int, btcPri
 		return s.Footer.Render(left + strings.Repeat(" ", gap) + right)
 	}
 
-	filterLabel := ""
-	switch filter {
-	case FilterGainers:
-		filterLabel = "  •  ↑ GAINERS"
-	case FilterLosers:
-		filterLabel = "  •  ↓ LOSERS"
+	// Contextual hints based on focus
+	var left string
+	if newsFocused {
+		left = " esc back  j/k navigate  enter read  n unfocus"
+	} else {
+		filterLabel := ""
+		switch filter {
+		case FilterGainers:
+			filterLabel = "  •  ↑ GAINERS"
+		case FilterLosers:
+			filterLabel = "  •  ↓ LOSERS"
+		}
+		searchLabel := ""
+		if searchQuery != "" {
+			searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
+		}
+		// Sort indicator
+		arrow := "▼"
+		if sortAsc {
+			arrow = "▲"
+		}
+		sortLabel := fmt.Sprintf("  •  %s %s", sortColName(sortCol), arrow)
+		left = fmt.Sprintf(" ?help /search enter:detail  •  %d pairs%s%s%s", pairCount, filterLabel, searchLabel, sortLabel)
 	}
-	searchLabel := ""
-	if searchQuery != "" {
-		searchLabel = fmt.Sprintf("  •  /%s", searchQuery)
-	}
+
 	posStr := ""
 	if totalRows > 0 {
 		posStr = fmt.Sprintf("  %d/%d", cursorPos+1, totalRows)
 	}
-	left := fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s", pairCount, filterLabel, searchLabel)
-	right := fmt.Sprintf("%s%s%s  %s %s ", posStr, "  ", btc+now, dot, status)
+	// Build right side; compute plain-text width separately since dot has ANSI codes
+	rightPlain := fmt.Sprintf("%s  %s  ● %s ", posStr, btc+now, status)
+	right := fmt.Sprintf("%s  %s  %s %s ", posStr, btc+now, dot, status)
 
-	gap := termWidth - len(left) - len(right)
+	gap := termWidth - len(left) - len(rightPlain)
 	if gap < 1 {
 		gap = 1
 	}

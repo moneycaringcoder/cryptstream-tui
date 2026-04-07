@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 )
 
@@ -232,7 +233,13 @@ func (m Model) renderConfigView() string {
 			val = m.configUI.editBuf + "█"
 		}
 
-		line := label + "  " + val
+		// Add color preview swatch for theme fields
+		colorPreview := ""
+		if f.group == "Theme" && len(val) > 0 && val[0] == '#' {
+			colorPreview = " " + lipgloss.NewStyle().Background(lipgloss.Color(val)).Render("   ")
+		}
+
+		line := label + "  " + val + colorPreview
 
 		if isCursor {
 			sb.WriteString(s.CursorRow.Render(padRight(line, m.termW)))
@@ -276,7 +283,7 @@ func (m Model) renderConfigView() string {
 	if m.configUI.editing {
 		footerLeft = " type value  •  enter save  •  esc cancel"
 	} else {
-		footerLeft = " j/k navigate  •  enter edit  •  esc close"
+		footerLeft = " j/k navigate  •  enter edit  •  r reset  •  esc close"
 	}
 	footerRight := ""
 	if m.configUI.savedNotice > 0 {

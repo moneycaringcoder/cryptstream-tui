@@ -22,6 +22,14 @@ func (m Model) View() string {
 		return m.renderConfigView()
 	}
 
+	if m.showArticle {
+		return m.renderArticleView()
+	}
+
+	if m.showDetail {
+		return m.renderDetailView()
+	}
+
 	tableW := m.tableWidth()
 	var tableStr string
 	if m.showDefi {
@@ -86,7 +94,7 @@ func (m Model) renderTable(tableW int) string {
 	if btc, ok := m.tickers["BTCUSDT"]; ok {
 		btcPrice = btc.LastPrice
 	}
-	sb.WriteString(RenderFooter(s, len(m.tickers), m.connected, tableW, btcPrice, m.filterMode, m.searching, m.searchQuery, m.cursor, len(m.sorted)))
+	sb.WriteString(RenderFooter(s, len(m.tickers), m.connected, tableW, btcPrice, m.filterMode, m.searching, m.searchQuery, m.cursor, len(m.sorted), m.sortCol, m.sortAsc, m.newsCursor >= 0, m.commandMode, m.commandBuf))
 
 	return sb.String()
 }
@@ -140,6 +148,11 @@ func (m Model) renderNewsBand(s Styles, w int) string {
 		if i == 0 && m.newsFlash > 0 {
 			plainLine := " " + agoPad + " " + src + dot + title + " "
 			sb.WriteString(flashStyle.Render(plainLine))
+		} else if i == m.newsCursor {
+			// Highlight focused news line
+			cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color("#333333")).Foreground(lipgloss.Color("#ffffff"))
+			plainLine := " " + agoPad + " " + src + dot + title + " "
+			sb.WriteString(cursorStyle.Render(plainLine))
 		} else {
 			sb.WriteString(" " + agoStyle.Render(agoPad) + " " + srcStyle.Render(src) + dotStyle.Render(dot) + titleStyle.Render(title) + " ")
 		}

@@ -95,7 +95,7 @@ func (m Model) renderPanel() string {
 	}
 
 	// Fear & Greed gauge
-	if m.fearGreed.Value > 0 {
+	if m.fearGreed.Value > 0 && !m.sidebarCollapsed["fng"] {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 		fg := m.fearGreed
 		barW := inner - 1 // width for the gauge bar
@@ -127,11 +127,15 @@ func (m Model) renderPanel() string {
 	// Vol Spikes (only if any are spiking)
 	if len(ms.VolSpikes) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		lines = append(lines, border+" "+s.PanelLabel.Render("VOL SPIKES"))
-		for _, t := range ms.VolSpikes {
-			sym := padRight(t.DisplaySymbol(), 8)
-			ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
-			lines = append(lines, border+"  "+sym+" "+ratio)
+		if m.sidebarCollapsed["spikes"] {
+			lines = append(lines, border+" "+s.PanelLabel.Render("VOL SPIKES ▸"))
+		} else {
+			lines = append(lines, border+" "+s.PanelLabel.Render("VOL SPIKES ▾"))
+			for _, t := range ms.VolSpikes {
+				sym := padRight(t.DisplaySymbol(), 8)
+				ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
+				lines = append(lines, border+"  "+sym+" "+ratio)
+			}
 		}
 	}
 
@@ -150,24 +154,28 @@ func (m Model) renderPanel() string {
 		if len(pairs) > 0 {
 			sort.Slice(pairs, func(i, j int) bool { return pairs[i].rate > pairs[j].rate })
 			lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-			lines = append(lines, border+" "+s.PanelLabel.Render("FUNDING RATES"))
-			show := 3
-			// Highest (most positive = longs pay)
-			for i := 0; i < show && i < len(pairs); i++ {
-				p := pairs[i]
-				sym := padRight(p.sym, 8)
-				rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", p.rate))
-				lines = append(lines, border+"  "+sym+" "+rate)
-			}
-			// Lowest (most negative = shorts pay)
-			for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
-				p := pairs[i]
-				if p.rate >= 0 {
-					continue
+			if m.sidebarCollapsed["funding"] {
+				lines = append(lines, border+" "+s.PanelLabel.Render("FUNDING RATES ▸"))
+			} else {
+				lines = append(lines, border+" "+s.PanelLabel.Render("FUNDING RATES ▾"))
+				show := 3
+				// Highest (most positive = longs pay)
+				for i := 0; i < show && i < len(pairs); i++ {
+					p := pairs[i]
+					sym := padRight(p.sym, 8)
+					rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", p.rate))
+					lines = append(lines, border+"  "+sym+" "+rate)
 				}
-				sym := padRight(p.sym, 8)
-				rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", p.rate))
-				lines = append(lines, border+"  "+sym+" "+rate)
+				// Lowest (most negative = shorts pay)
+				for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
+					p := pairs[i]
+					if p.rate >= 0 {
+						continue
+					}
+					sym := padRight(p.sym, 8)
+					rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", p.rate))
+					lines = append(lines, border+"  "+sym+" "+rate)
+				}
 			}
 		}
 	}
@@ -178,7 +186,10 @@ func (m Model) renderPanel() string {
 	// Gainers / Losers side by side
 	colGap := 2
 	colW := (inner - colGap) / 2 // width available per column
-	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS"))
+	if m.sidebarCollapsed["movers"] {
+		lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS")+" ▸")
+	} else {
+	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS")+" ▾")
 	limit := 5
 	for i := 0; i < limit; i++ {
 		leftPad := strings.Repeat(" ", colW+colGap)
@@ -205,11 +216,15 @@ func (m Model) renderPanel() string {
 		}
 		lines = append(lines, border+" "+leftPad+rightStr)
 	}
+	} // end movers else
 
 	// Liquidation feed (if any)
 	if len(m.recentLiqs) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
+		if m.sidebarCollapsed["liqs"] {
+			lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS ▸"))
+		} else {
+		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS ▾"))
 		liqColW := (inner - 1) / 2 // 2 liqs per line
 		for i := 0; i < len(m.recentLiqs); i += 2 {
 			left := m.formatLiqCell(s, m.recentLiqs[i], liqColW)
@@ -219,6 +234,7 @@ func (m Model) renderPanel() string {
 			}
 			lines = append(lines, border+" "+left+right)
 		}
+		} // end liqs else
 	}
 
 	// Fill remaining height, reserving 2 lines at bottom for notification box
