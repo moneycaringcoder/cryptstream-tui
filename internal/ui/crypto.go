@@ -106,8 +106,7 @@ type CryptoView struct {
 	showDefi      bool
 	focused       bool
 
-	DetailOverlay *tuikit.DetailOverlay[ticker.Ticker]
-	Panel         *MarketPanel
+	Panel *MarketPanel
 
 	table     *tuikit.Table
 	defiTable *tuikit.Table
@@ -217,11 +216,22 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		return nil
 	}
 
+	detailFunc := func(row tuikit.Row, rowIdx int, width int, theme tuikit.Theme) string {
+		if len(row) < 2 {
+			return ""
+		}
+		symbol := row[1] + "USDT"
+		t := c.tickers[symbol]
+		return c.renderDetailBar(t, width)
+	}
+
 	c.table = tuikit.NewTable(columns, nil, tuikit.TableOpts{
 		HeaderStyle:  c.styles.Header,
 		CellRenderer: cellRenderer,
 		RowStyler:    rowStyler,
 		SortFunc:     sortFunc,
+		DetailFunc:   detailFunc,
+		DetailHeight: 3,
 	})
 
 	defiColumns := []tuikit.Column{
@@ -501,11 +511,6 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 			c.defiTable.SetCursor(0)
 		}
 		return c, tuikit.Consumed()
-	case "enter":
-		if c.DetailOverlay != nil && c.cursor >= 0 && c.cursor < len(c.sorted) {
-			c.DetailOverlay.Show(c.sorted[c.cursor])
-			return c, tuikit.Consumed()
-		}
 	case "esc":
 		if c.searchQuery != "" {
 			c.searchQuery = ""

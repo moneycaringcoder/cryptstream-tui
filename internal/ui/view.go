@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	tuikit "github.com/moneycaringcoder/tuikit-go"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
@@ -98,4 +99,45 @@ func (c *CryptoView) renderHeader(w int) string {
 	line2 := dimStyle.Render(statsStr)
 
 	return line1 + "\n" + line2
+}
+
+// renderDetailBar renders a compact 3-line inline detail for the selected coin.
+func (c *CryptoView) renderDetailBar(t ticker.Ticker, w int) string {
+	s := c.styles
+	theme := tuikit.DefaultTheme()
+
+	divider := tuikit.Divider(w, theme)
+
+	chgStyle := s.Positive
+	if t.PriceChangePercent < 0 {
+		chgStyle = s.Negative
+	}
+
+	line1 := fmt.Sprintf(" %s  %s  %s  %s",
+		tuikit.Badge(t.DisplaySymbol(), lipgloss.Color("#ffffff"), true),
+		tuikit.Badge(ticker.FormatPrice(t.LastPrice), lipgloss.Color("#ffffff"), false),
+		chgStyle.Bold(true).Render(fmt.Sprintf("%+.2f%%", t.PriceChangePercent)),
+		lipgloss.NewStyle().Foreground(s.ColorDim).Render("vol "+ticker.FormatVolume(t.QuoteVolume)),
+	)
+
+	// Line 2: supplementary info
+	dim := lipgloss.NewStyle().Foreground(s.ColorDim)
+	var parts []string
+	parts = append(parts, dim.Render(fmt.Sprintf("H %s  L %s", ticker.FormatPrice(t.HighPrice), ticker.FormatPrice(t.LowPrice))))
+	if fr := c.fundingRates[t.Symbol]; fr.Rate != 0 {
+		frStyle := s.Positive
+		if fr.Rate > 0 {
+			frStyle = s.Negative
+		}
+		parts = append(parts, dim.Render("fund ")+frStyle.Render(fmt.Sprintf("%+.3f%%", fr.Rate)))
+	}
+	if t.VolumeSpiking {
+		parts = append(parts, s.VolSpike.Render(fmt.Sprintf("%.1fx vol", t.VolumeSpikeRatio)))
+	}
+	if corr, ok := c.correlations[t.Symbol]; ok {
+		parts = append(parts, dim.Render(fmt.Sprintf("βBTC %.2f", corr)))
+	}
+	line2 := " " + strings.Join(parts, "  ")
+
+	return divider + "\n" + line1 + "\n" + line2
 }
