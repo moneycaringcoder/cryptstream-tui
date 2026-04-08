@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	tuikit "github.com/moneycaringcoder/tuikit-go"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
@@ -106,18 +108,16 @@ type CryptoView struct {
 	marketStats   MarketStats
 	defiPools     []defiyields.Pool
 	showDefi      bool
-	defiCursor    int
-	defiScroll    int
 	newsArticles  []news.Article
 	newsOn        bool
 	newsFlash     int
 	focused       bool
 
 	DetailOverlay *tuikit.DetailOverlay[ticker.Ticker]
+	Panel         *MarketPanel
 
-	secVolSpikes *tuikit.CollapsibleSection
-	secFunding   *tuikit.CollapsibleSection
-	secLiqs      *tuikit.CollapsibleSection
+	table     *tuikit.Table
+	defiTable *tuikit.Table
 
 	fundingPoller *tuikit.Poller
 	fngPoller     *tuikit.Poller
@@ -141,10 +141,134 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		liqFlash:      make(map[string]time.Time),
 		correlations:  make(map[string]float64),
 		newsOn:        true,
-		secVolSpikes:  tuikit.NewCollapsibleSection("VOL SPIKES"),
-		secFunding:    tuikit.NewCollapsibleSection("FUNDING RATES"),
-		secLiqs:       tuikit.NewCollapsibleSection("LIQUIDATIONS"),
 	}
+	c.Panel = NewMarketPanel(c.styles)
+
+	columns := []tuikit.Column{
+		{Title: "#", Width: 3, MaxWidth: 4, Align: tuikit.Right},
+		{Title: "SYMBOL", Width: 14, Sortable: true},
+		{Title: "PRICE", Width: 20, Align: tuikit.Right, Sortable: true},
+		{Title: "CHANGE", Width: 10, Align: tuikit.Right, Sortable: true},
+		{Title: "TREND", Width: 22, MaxWidth: 20, MinWidth: 70, NoRowStyle: true, Align: tuikit.Center},
+		{Title: "βBTC", Width: 8, Align: tuikit.Right, MinWidth: 90, Sortable: true},
+		{Title: "VOLUME", Width: 15, Align: tuikit.Right, Sortable: true},
+	}
+
+	cellRenderer := func(row tuikit.Row, colIdx int, isCursor bool, theme tuikit.Theme) string {
+		if colIdx >= len(row) {
+			return ""
+		}
+		s := c.styles
+		symbol := ""
+		if len(row) > 1 {
+			symbol = row[1] + "USDT"
+		}
+
+		cell := row[colIdx]
+
+		// TREND column: render sparkline
+		if colIdx == 4 {
+			sparkData := c.priceHistory[symbol]
+			styled, _ := tuikit.Sparkline(sparkData, 20, &tuikit.SparklineOpts{
+				UpStyle:      s.Positive,
+				DownStyle:    s.Negative,
+				NeutralStyle: s.Neutral,
+			})
+			return styled
+		}
+
+		// Foreground-only styling — RowStyler owns all backgrounds
+		t := c.tickers[symbol]
+		starred := c.Watchlist.IsStarred(symbol)
+		corr := c.correlations[symbol]
+
+		switch colIdx {
+		case 3: // CHANGE
+			return changeStyle(s, t.PriceChangePercent).Render(cell)
+		case 5: // βBTC
+			return corrStyle(s, corr).Render(cell)
+		case 6: // VOLUME
+			if t.VolumeSpiking {
+				return s.VolSpike.Render(cell)
+			}
+		case 1: // SYMBOL
+			if starred {
+				return s.Star.Render(cell)
+			}
+		}
+		return cell
+	}
+
+	sortFunc := func(a, b tuikit.Row, sortCol int, sortAsc bool) bool {
+		// Sorting is handled externally by rebuildSorted, so this is a no-op
+		// (rows are pre-sorted before being set on the table)
+		return false
+	}
+
+	rowStyler := func(row tuikit.Row, idx int, isCursor bool, theme tuikit.Theme) *lipgloss.Style {
+		if len(row) < 2 {
+			return nil
+		}
+		symbol := row[1] + "USDT"
+		t := c.tickers[symbol]
+		if time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral {
+			st := flashStyle(c.styles, t.Flash)
+			return &st
+		}
+		if time.Now().Before(c.liqFlash[symbol]) {
+			st := c.styles.LiqFlash
+			return &st
+		}
+		if isCursor {
+			st := c.styles.CursorRow
+			return &st
+		}
+		return nil
+	}
+
+	c.table = tuikit.NewTable(columns, nil, tuikit.TableOpts{
+		HeaderStyle:  c.styles.Header,
+		CellRenderer: cellRenderer,
+		RowStyler:    rowStyler,
+		SortFunc:     sortFunc,
+	})
+
+	defiColumns := []tuikit.Column{
+		{Title: "#", Width: 4, Align: tuikit.Right},
+		{Title: "PROTOCOL", Width: 20},
+		{Title: "POOL", Width: 30},
+		{Title: "CHAIN", Width: 15},
+		{Title: "APY", Width: 15, Align: tuikit.Right, Sortable: true},
+		{Title: "TVL", Width: 15, Align: tuikit.Right, Sortable: true},
+	}
+
+	defiCellRenderer := func(row tuikit.Row, colIdx int, isCursor bool, theme tuikit.Theme) string {
+		if colIdx >= len(row) {
+			return ""
+		}
+		cell := row[colIdx]
+		s := c.styles
+		if colIdx == 4 { // APY
+			return s.Positive.Render(cell)
+		}
+		return cell
+	}
+
+	defiRowStyler := func(row tuikit.Row, idx int, isCursor bool, theme tuikit.Theme) *lipgloss.Style {
+		if isCursor {
+			st := c.styles.CursorRow
+			return &st
+		}
+		return nil
+	}
+
+	c.defiTable = tuikit.NewTable(defiColumns, nil, tuikit.TableOpts{
+		Sortable:     true,
+		HeaderStyle:  c.styles.Header,
+		RowStyler:    defiRowStyler,
+		CellRenderer: defiCellRenderer,
+	})
+
 	for _, t := range initial {
 		c.tickers[t.Symbol] = t
 		c.priceHistory[t.Symbol] = []float64{t.LastPrice}
@@ -179,17 +303,20 @@ func (c *CryptoView) Update(msg tea.Msg) (tuikit.Component, tea.Cmd) {
 	case fundingMsg:
 		if msg != nil {
 			c.fundingRates = map[string]funding.Info(msg)
+			c.syncPanel()
 		}
 		return c, nil
 	case fngMsg:
 		idx := feargreed.Index(msg)
 		if idx.Value > 0 {
 			c.fearGreed = idx
+			c.syncPanel()
 		}
 		return c, nil
 	case defiMsg:
 		if msg != nil {
 			c.defiPools = []defiyields.Pool(msg)
+			c.rebuildDefiRows()
 		}
 		return c, nil
 	case newsMsg:
@@ -210,6 +337,7 @@ func (c *CryptoView) Update(msg tea.Msg) (tuikit.Component, tea.Cmd) {
 			c.recentLiqs = c.recentLiqs[:10]
 		}
 		c.liqFlash[l.Symbol] = time.Now().Add(2 * time.Second)
+		c.syncPanel()
 		return c, nil
 	case connMsg:
 		c.connected = msg.connected
@@ -311,18 +439,10 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 		switch msg.String() {
 		case "d", "esc":
 			c.showDefi = false
-		case "j", "down":
-			c.defiCursor++
-			c.clampDefiCursor()
-		case "k", "up":
-			c.defiCursor--
-			c.clampDefiCursor()
-		case "g", "home":
-			c.defiCursor = 0
-			c.clampDefiCursor()
-		case "G", "end":
-			c.defiCursor = len(c.defiPools) - 1
-			c.clampDefiCursor()
+		default:
+			if c.defiTable != nil {
+				c.defiTable.Update(msg)
+			}
 		}
 		return c, tuikit.Consumed()
 	}
@@ -357,39 +477,13 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 		return c, tuikit.Consumed()
 	}
 
-	// Normal mode
+	// Normal mode — delegate navigation to table
 	switch msg.String() {
-	case "j", "down":
-		c.cursor++
-		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "k", "up":
-		c.cursor--
-		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "g", "home":
-		c.cursor = 0
-		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "G", "end":
-		c.cursor = len(c.sorted) - 1
-		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "ctrl+d":
-		half := c.visibleRows / 2
-		if half < 1 {
-			half = 1
+	case "j", "down", "k", "up", "g", "home", "G", "end", "ctrl+d", "ctrl+u":
+		if c.table != nil {
+			c.table.Update(msg)
+			c.cursor = c.table.CursorIndex()
 		}
-		c.cursor += half
-		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "ctrl+u":
-		half := c.visibleRows / 2
-		if half < 1 {
-			half = 1
-		}
-		c.cursor -= half
-		c.clampCursor()
 		return c, tuikit.Consumed()
 	case "tab":
 		c.sortCol = (c.sortCol + 1) % sortColCount
@@ -432,34 +526,16 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 		c.searching = true
 		c.searchQuery = ""
 		return c, tuikit.Consumed()
-	case "p":
-		c.panelOn = !c.panelOn
-		if c.panelOn {
-			c.Cfg.PanelLayout = "right"
-		} else {
-			c.Cfg.PanelLayout = "off"
-		}
-		c.visibleRows = c.tableVisibleRows()
-		c.clampCursor()
-		return c, tuikit.Consumed()
 	case "d":
 		c.showDefi = true
-		c.defiCursor = 0
-		c.defiScroll = 0
+		if c.defiTable != nil {
+			c.defiTable.SetCursor(0)
+		}
 		return c, tuikit.Consumed()
 	case "n":
 		c.newsOn = !c.newsOn
 		c.visibleRows = c.tableVisibleRows()
 		c.clampCursor()
-		return c, tuikit.Consumed()
-	case "1":
-		c.secVolSpikes.Toggle()
-		return c, tuikit.Consumed()
-	case "2":
-		c.secFunding.Toggle()
-		return c, tuikit.Consumed()
-	case "3":
-		c.secLiqs.Toggle()
 		return c, tuikit.Consumed()
 	case "enter":
 		if c.DetailOverlay != nil && c.cursor >= 0 && c.cursor < len(c.sorted) {
@@ -484,65 +560,37 @@ func (c *CryptoView) handleMouse(msg tea.MouseMsg) (tuikit.Component, tea.Cmd) {
 		return c, nil
 	}
 
-	tableW := c.tableWidth()
-
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
-		if msg.X < tableW {
-			if c.showDefi {
-				c.defiCursor--
-				c.clampDefiCursor()
-			} else {
-				c.cursor--
-				c.clampCursor()
-			}
+	if c.showDefi {
+		if c.defiTable != nil {
+			c.defiTable.Update(msg)
 		}
-	case tea.MouseButtonWheelDown:
-		if msg.X < tableW {
-			if c.showDefi {
-				c.defiCursor++
-				c.clampDefiCursor()
-			} else {
-				c.cursor++
-				c.clampCursor()
-			}
+		return c, nil
+	}
+
+	// Delegate to table for scrolling and row selection
+	switch msg.Button {
+	case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
+		if c.table != nil {
+			c.table.Update(msg)
+			c.cursor = c.table.CursorIndex()
 		}
 	case tea.MouseButtonLeft:
-		x := msg.X
-		y := msg.Y
-
-		if x >= tableW {
-			break
-		}
-
 		newsH := c.newsHeight()
-		tableEnd := 2 + c.visibleRows
-		newsStart := c.height - 2 - newsH
-		if y >= 2 && y < tableEnd {
-			if c.showDefi {
-				row := c.defiScroll + (y - 3)
-				if row >= 0 && row < len(c.defiPools) {
-					c.defiCursor = row
-					c.clampDefiCursor()
-				}
-			} else {
-				row := c.offset + (y - 2)
-				if row < len(c.sorted) {
-					c.cursor = row
-					c.clampCursor()
-				}
-			}
-		} else if newsH > 0 && y >= newsStart && y < newsStart+newsH {
-			lineIdx := y - newsStart - 1
+		newsStart := c.height - newsH
+		if newsH > 0 && msg.Y >= newsStart {
+			lineIdx := msg.Y - newsStart - 1
 			if lineIdx >= 0 && lineIdx < 5 && lineIdx < len(c.newsArticles) {
 				url := c.newsArticles[lineIdx].URL
 				if url != "" {
 					return c, func() tea.Msg {
-						openBrowser(url)
+						tuikit.OpenURL(url)
 						return nil
 					}
 				}
 			}
+		} else if c.table != nil {
+			c.table.Update(msg)
+			c.cursor = c.table.CursorIndex()
 		}
 	}
 	return c, nil
@@ -561,11 +609,9 @@ func (c *CryptoView) KeyBindings() []tuikit.KeyBind {
 		{Key: "shift+tab", Label: "Sort column back", Group: "DATA"},
 		{Key: "s", Label: "Star/unstar symbol", Group: "DATA"},
 		{Key: "f", Label: "Cycle filter", Group: "DATA"},
-		{Key: "p", Label: "Toggle sidebar", Group: "DATA"},
 		{Key: "n", Label: "Toggle news", Group: "DATA"},
 		{Key: "d", Label: "DeFi yields", Group: "DATA"},
 		{Key: "enter", Label: "Coin detail", Group: "DATA"},
-		{Key: "1/2/3", Label: "Toggle panel sections", Group: "DATA"},
 		{Key: "/", Label: "Search symbols", Group: "SEARCH"},
 		{Key: "enter", Label: "Confirm search", Group: "SEARCH"},
 		{Key: "esc", Label: "Cancel / clear", Group: "SEARCH"},
@@ -581,6 +627,7 @@ func (c *CryptoView) SetSize(w, h int) {
 
 func (c *CryptoView) Focused() bool       { return c.focused }
 func (c *CryptoView) SetFocused(f bool)    { c.focused = f }
+func (c *CryptoView) CapturesInput() bool  { return c.searching }
 
 // SelectedTicker returns the currently selected ticker, if any.
 func (c *CryptoView) SelectedTicker() (ticker.Ticker, bool) {
@@ -695,6 +742,45 @@ func (c *CryptoView) rebuildSorted() {
 	})
 	c.sorted = all
 	c.computeMarketStats()
+	c.syncPanel()
+	c.rebuildRows()
+}
+
+func (c *CryptoView) rebuildRows() {
+	if c.table == nil {
+		return
+	}
+	rows := make([]tuikit.Row, len(c.sorted))
+	for i, t := range c.sorted {
+		corr := c.correlations[t.Symbol]
+		corrStr := fmt.Sprintf("%.2f", corr)
+		if t.Symbol == "BTCUSDT" {
+			corrStr = "—"
+		}
+		price := ticker.FormatPrice(t.LastPrice)
+		if time.Now().Before(t.FlashUntil) && t.PriceDelta != 0 {
+			price += " " + fmt.Sprintf("%+.2f", t.PriceDelta)
+		}
+		vol := ticker.FormatVolume(t.QuoteVolume)
+		if t.VolumeSpiking {
+			vol += fmt.Sprintf(" %.1fx", t.VolumeSpikeRatio)
+		}
+		sym := t.DisplaySymbol()
+		if c.Watchlist.IsStarred(t.Symbol) {
+			sym = "★ " + sym
+		}
+		rows[i] = tuikit.Row{
+			fmt.Sprintf("%d", i+1),
+			sym,
+			price,
+			formatChange(t.PriceChangePercent),
+			"", // TREND — rendered by CellRenderer
+			corrStr,
+			vol,
+		}
+	}
+	c.table.SetRows(rows)
+	c.table.SetCursor(c.cursor)
 }
 
 func (c *CryptoView) computeMarketStats() {
@@ -810,6 +896,35 @@ func (c *CryptoView) computeCorrelations() {
 	}
 }
 
+func (c *CryptoView) rebuildDefiRows() {
+	if c.defiTable == nil {
+		return
+	}
+	rows := make([]tuikit.Row, len(c.defiPools))
+	for i, p := range c.defiPools {
+		rows[i] = tuikit.Row{
+			fmt.Sprintf("%d", i+1),
+			p.Protocol,
+			p.Symbol,
+			p.Chain,
+			fmt.Sprintf("%.2f%%", p.APY),
+			ticker.FormatVolume(p.TVL),
+		}
+	}
+	c.defiTable.SetRows(rows)
+}
+
+func (c *CryptoView) syncPanel() {
+	if c.Panel == nil {
+		return
+	}
+	c.Panel.SetMarketStats(c.marketStats)
+	c.Panel.SetFundingRates(c.fundingRates)
+	c.Panel.SetFearGreed(FearGreedData{Value: c.fearGreed.Value, Label: c.fearGreed.Label})
+	c.Panel.SetRecentLiqs(c.recentLiqs)
+	c.Panel.SetTickers(c.tickers)
+}
+
 func pearson(x, y []float64) float64 {
 	n := float64(len(x))
 	var sumX, sumY, sumXY, sumX2, sumY2 float64
@@ -850,28 +965,6 @@ func (c *CryptoView) clampCursor() {
 	}
 }
 
-func (c *CryptoView) clampDefiCursor() {
-	if len(c.defiPools) == 0 {
-		c.defiCursor = 0
-		c.defiScroll = 0
-		return
-	}
-	if c.defiCursor < 0 {
-		c.defiCursor = 0
-	}
-	if c.defiCursor >= len(c.defiPools) {
-		c.defiCursor = len(c.defiPools) - 1
-	}
-	visRows := c.visibleRows - 1
-	if visRows > 0 {
-		if c.defiCursor < c.defiScroll {
-			c.defiScroll = c.defiCursor
-		}
-		if c.defiCursor >= c.defiScroll+visRows {
-			c.defiScroll = c.defiCursor - visRows + 1
-		}
-	}
-}
 
 // Fetch commands.
 
@@ -932,6 +1025,37 @@ func LiqMsgFrom(l liquidation.Liq) tea.Msg {
 	return liqMsg(l)
 }
 
+// Accessor methods for status bar closures.
+
+// FilterMode returns the current filter mode.
+func (c *CryptoView) FilterMode() FilterMode { return c.filterMode }
+
+// SearchQuery returns the current search query.
+func (c *CryptoView) SearchQuery() string { return c.searchQuery }
+
+// IsSearching returns whether search mode is active.
+func (c *CryptoView) IsSearching() bool { return c.searching }
+
+// PairCount returns the total number of tracked pairs.
+func (c *CryptoView) PairCount() int { return len(c.tickers) }
+
+// VisibleCount returns the number of visible (filtered/sorted) rows.
+func (c *CryptoView) VisibleCount() int { return len(c.sorted) }
+
+// CursorPos returns the current cursor position.
+func (c *CryptoView) CursorPos() int { return c.cursor }
+
+// BtcPrice returns the current BTC price.
+func (c *CryptoView) BtcPrice() float64 {
+	if btc, ok := c.tickers["BTCUSDT"]; ok {
+		return btc.LastPrice
+	}
+	return 0
+}
+
+// Connected returns the current connection state.
+func (c *CryptoView) Connected() bool { return c.connected }
+
 // SetSort changes the sort column by name: volume, price, change, symbol, correlation.
 func (c *CryptoView) SetSort(col string) bool {
 	sc := parseSortCol(col)
@@ -975,6 +1099,9 @@ func (c *CryptoView) GoToSymbol(sym string) bool {
 // ReapplyConfig re-derives styles and state from the current config.
 func (c *CryptoView) ReapplyConfig() {
 	c.styles = NewStyles(*c.Cfg)
+	if c.Panel != nil {
+		c.Panel.SetStyles(c.styles)
+	}
 	c.panelOn = parsePanelOn(c.Cfg.PanelLayout)
 	c.sortCol = parseSortCol(c.Cfg.DefaultSort)
 	c.sortAsc = c.Cfg.SortAscending

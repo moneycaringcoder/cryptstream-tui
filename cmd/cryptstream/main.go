@@ -31,6 +31,7 @@ func main() {
 	}
 
 	cryptoView := ui.NewCryptoView(initial, &cfg)
+	marketPanel := cryptoView.Panel
 
 	configEditor := tuikit.NewConfigEditor(buildConfigFields(&cfg, cryptoView))
 
@@ -44,12 +45,66 @@ func main() {
 	})
 	cryptoView.DetailOverlay = detailOverlay
 
+	statusLeft := func() string {
+		filterLabel := ""
+		switch cryptoView.FilterMode() {
+		case ui.FilterGainers:
+			filterLabel = "  •  ↑ GAINERS"
+		case ui.FilterLosers:
+			filterLabel = "  •  ↓ LOSERS"
+		}
+		searchLabel := ""
+		if q := cryptoView.SearchQuery(); q != "" {
+			searchLabel = fmt.Sprintf("  •  /%s", q)
+		}
+		if cryptoView.IsSearching() {
+			query := cryptoView.SearchQuery()
+			if query == "" {
+				query = "_"
+			}
+			return fmt.Sprintf(" / %s", query)
+		}
+		return fmt.Sprintf(" ? help  / search  p panel  q quit  •  %d pairs%s%s", cryptoView.PairCount(), filterLabel, searchLabel)
+	}
+
+	statusRight := func() string {
+		if cryptoView.IsSearching() {
+			return "esc cancel  enter confirm "
+		}
+		posStr := ""
+		total := cryptoView.VisibleCount()
+		if total > 0 {
+			posStr = fmt.Sprintf("  %d/%d", cryptoView.CursorPos()+1, total)
+		}
+		btcPrice := cryptoView.BtcPrice()
+		btc := ""
+		if btcPrice > 0 {
+			btc = fmt.Sprintf("BTC %s  •  ", ticker.FormatPrice(btcPrice))
+		}
+		now := time.Now().Format("15:04:05")
+		dot := "●"
+		status := "connected"
+		if !cryptoView.Connected() {
+			status = "reconnecting..."
+		}
+		return fmt.Sprintf("%s  %s%s  %s %s ", posStr, btc, now, dot, status)
+	}
+
 	app := tuikit.NewApp(
-		tuikit.WithComponent("crypto", cryptoView),
+		tuikit.WithLayout(&tuikit.DualPane{
+			Main:         cryptoView,
+			Side:         marketPanel,
+			SideWidth:    30,
+			MinMainWidth: 70,
+			SideRight:    true,
+			ToggleKey:    "p",
+		}),
+		tuikit.WithFocusCycleKey(""),
 		tuikit.WithHelp(),
 		tuikit.WithOverlay("Settings", "c", configEditor),
 		tuikit.WithOverlay("Command", ":", commandBar),
 		tuikit.WithOverlay("Detail", "", detailOverlay),
+		tuikit.WithStatusBar(statusLeft, statusRight),
 		tuikit.WithTickInterval(100*time.Millisecond),
 		tuikit.WithMouseSupport(),
 		tuikit.WithAutoUpdate(tuikit.UpdateConfig{
