@@ -15,7 +15,6 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/feargreed"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/funding"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
-	"github.com/moneycaringcoder/cryptstream-tui/internal/news"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/watchlist"
 )
@@ -39,9 +38,6 @@ type fngMsg feargreed.Index
 
 // defiMsg carries DeFi yield pool data.
 type defiMsg []defiyields.Pool
-
-// newsMsg carries news articles.
-type newsMsg []news.Article
 
 // SortCol identifies which column is used for sorting.
 type SortCol int
@@ -108,9 +104,6 @@ type CryptoView struct {
 	marketStats   MarketStats
 	defiPools     []defiyields.Pool
 	showDefi      bool
-	newsArticles  []news.Article
-	newsOn        bool
-	newsFlash     int
 	focused       bool
 
 	DetailOverlay *tuikit.DetailOverlay[ticker.Ticker]
@@ -122,7 +115,6 @@ type CryptoView struct {
 	fundingPoller *tuikit.Poller
 	fngPoller     *tuikit.Poller
 	defiPoller    *tuikit.Poller
-	newsPoller    *tuikit.Poller
 }
 
 // NewCryptoView creates a CryptoView pre-populated with initial ticker data.
@@ -138,9 +130,8 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		sortAsc:       cfg.SortAscending,
 		filterMode:    parseFilterMode(cfg.DefaultFilter),
 		panelOn:       parsePanelOn(cfg.PanelLayout),
-		liqFlash:      make(map[string]time.Time),
-		correlations:  make(map[string]float64),
-		newsOn:        true,
+		liqFlash:     make(map[string]time.Time),
+		correlations: make(map[string]float64),
 	}
 	c.Panel = NewMarketPanel(c.styles)
 
@@ -279,7 +270,6 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 	c.fundingPoller = tuikit.NewPoller(5*time.Minute, func() tea.Cmd { return fetchFundingCmd() })
 	c.fngPoller = tuikit.NewPoller(30*time.Minute, func() tea.Cmd { return fetchFngCmd() })
 	c.defiPoller = tuikit.NewPoller(5*time.Minute, func() tea.Cmd { return fetchDefiCmd() })
-	c.newsPoller = tuikit.NewPoller(5*time.Minute, func() tea.Cmd { return fetchNewsCmd() })
 
 	return c
 }
@@ -290,7 +280,6 @@ func (c *CryptoView) Init() tea.Cmd {
 		fetchFundingCmd(),
 		fetchFngCmd(),
 		fetchDefiCmd(),
-		fetchNewsCmd(),
 	)
 }
 
@@ -319,17 +308,6 @@ func (c *CryptoView) Update(msg tea.Msg) (tuikit.Component, tea.Cmd) {
 			c.rebuildDefiRows()
 		}
 		return c, nil
-	case newsMsg:
-		if msg != nil {
-			newArticles := []news.Article(msg)
-			if len(c.newsArticles) == 0 || (len(newArticles) > 0 && newArticles[0].Title != c.newsArticles[0].Title) {
-				c.newsFlash = 20
-			}
-			c.newsArticles = newArticles
-			c.visibleRows = c.tableVisibleRows()
-			c.clampCursor()
-		}
-		return c, nil
 	case liqMsg:
 		l := liquidation.Liq(msg)
 		c.recentLiqs = append([]liquidation.Liq{l}, c.recentLiqs...)
@@ -351,12 +329,6 @@ func (c *CryptoView) Update(msg tea.Msg) (tuikit.Component, tea.Cmd) {
 }
 
 func (c *CryptoView) handleTick(msg tuikit.TickMsg) (tuikit.Component, tea.Cmd) {
-	// Flash countdowns
-	if c.newsFlash > 0 {
-		c.newsFlash--
-	}
-
-	// Check pollers
 	var cmds []tea.Cmd
 	if cmd := c.fundingPoller.Check(msg); cmd != nil {
 		cmds = append(cmds, cmd)
@@ -365,9 +337,6 @@ func (c *CryptoView) handleTick(msg tuikit.TickMsg) (tuikit.Component, tea.Cmd) 
 		cmds = append(cmds, cmd)
 	}
 	if cmd := c.defiPoller.Check(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-	if cmd := c.newsPoller.Check(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 	if len(cmds) > 0 {
@@ -532,11 +501,6 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 			c.defiTable.SetCursor(0)
 		}
 		return c, tuikit.Consumed()
-	case "n":
-		c.newsOn = !c.newsOn
-		c.visibleRows = c.tableVisibleRows()
-		c.clampCursor()
-		return c, tuikit.Consumed()
 	case "enter":
 		if c.DetailOverlay != nil && c.cursor >= 0 && c.cursor < len(c.sorted) {
 			c.DetailOverlay.Show(c.sorted[c.cursor])
@@ -575,20 +539,7 @@ func (c *CryptoView) handleMouse(msg tea.MouseMsg) (tuikit.Component, tea.Cmd) {
 			c.cursor = c.table.CursorIndex()
 		}
 	case tea.MouseButtonLeft:
-		newsH := c.newsHeight()
-		newsStart := c.height - newsH
-		if newsH > 0 && msg.Y >= newsStart {
-			lineIdx := msg.Y - newsStart - 1
-			if lineIdx >= 0 && lineIdx < 5 && lineIdx < len(c.newsArticles) {
-				url := c.newsArticles[lineIdx].URL
-				if url != "" {
-					return c, func() tea.Msg {
-						tuikit.OpenURL(url)
-						return nil
-					}
-				}
-			}
-		} else if c.table != nil {
+		if c.table != nil {
 			c.table.Update(msg)
 			c.cursor = c.table.CursorIndex()
 		}
@@ -609,7 +560,6 @@ func (c *CryptoView) KeyBindings() []tuikit.KeyBind {
 		{Key: "shift+tab", Label: "Sort column back", Group: "DATA"},
 		{Key: "s", Label: "Star/unstar symbol", Group: "DATA"},
 		{Key: "f", Label: "Cycle filter", Group: "DATA"},
-		{Key: "n", Label: "Toggle news", Group: "DATA"},
 		{Key: "d", Label: "DeFi yields", Group: "DATA"},
 		{Key: "enter", Label: "Coin detail", Group: "DATA"},
 		{Key: "/", Label: "Search symbols", Group: "SEARCH"},
@@ -995,16 +945,6 @@ func fetchDefiCmd() tea.Cmd {
 			return defiMsg(nil)
 		}
 		return defiMsg(pools)
-	}
-}
-
-func fetchNewsCmd() tea.Cmd {
-	return func() tea.Msg {
-		articles, err := news.Fetch(20)
-		if err != nil {
-			return newsMsg(nil)
-		}
-		return newsMsg(articles)
 	}
 }
 

@@ -19,17 +19,10 @@ func (c *CryptoView) renderDefiTable(tableW int) string {
 	sb.WriteByte('\n')
 
 	// Table component handles columns, rows, cursor, scroll
-	defiH := c.height - c.newsHeight() - 1 // minus title line
+	defiH := c.height - 1 // minus title line
 	c.defiTable.SetSize(tableW, defiH)
 	c.defiTable.SetFocused(true)
 	sb.WriteString(c.defiTable.View())
-
-	// News band
-	newsH := c.newsHeight()
-	if newsH > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(c.renderNewsBand(s, tableW))
-	}
 
 	// Footer
 	sb.WriteString("\n")
