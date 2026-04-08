@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	tuikit "github.com/moneycaringcoder/tuikit-go"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/binance"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ui"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func main() {
@@ -29,10 +31,22 @@ func main() {
 
 	configEditor := tuikit.NewConfigEditor(buildConfigFields(&cfg, cryptoView))
 
+	commandBar := tuikit.NewCommandBar(buildCommands(cryptoView))
+
+	detailOverlay := tuikit.NewDetailOverlay(tuikit.DetailOverlayOpts[ticker.Ticker]{
+		Title: "Coin Detail",
+		Render: func(t ticker.Ticker, w, h int, theme tuikit.Theme) string {
+			return renderCoinDetail(t, cryptoView, w)
+		},
+	})
+	cryptoView.DetailOverlay = detailOverlay
+
 	app := tuikit.NewApp(
 		tuikit.WithComponent("crypto", cryptoView),
 		tuikit.WithHelp(),
 		tuikit.WithOverlay("Settings", "c", configEditor),
+		tuikit.WithOverlay("Command", ":", commandBar),
+		tuikit.WithOverlay("Detail", "", detailOverlay),
 		tuikit.WithTickInterval(100*time.Millisecond),
 		tuikit.WithMouseSupport(),
 	)
@@ -262,5 +276,122 @@ func buildConfigFields(cfg *config.Config, cv *ui.CryptoView) []tuikit.ConfigFie
 			Get: func() string { return cfg.Theme.FlashRed }, Set: func(v string) error { cfg.Theme.FlashRed = v; save(); return nil }},
 		{Group: "Theme", Label: "Star", Hint: "Hex color for star/watchlist indicator",
 			Get: func() string { return cfg.Theme.Star }, Set: func(v string) error { cfg.Theme.Star = v; save(); return nil }},
+	}
+}
+
+func renderCoinDetail(t ticker.Ticker, cv *ui.CryptoView, w int) string {
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	valStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
+	posStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff88"))
+	negStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4444"))
+
+	chgStyle := posStyle
+	if t.PriceChangePercent < 0 {
+		chgStyle = negStyle
+	}
+
+	lines := []string{
+		labelStyle.Render("Symbol:     ") + valStyle.Render(t.DisplaySymbol()),
+		labelStyle.Render("Price:      ") + valStyle.Render(ticker.FormatPrice(t.LastPrice)),
+		labelStyle.Render("Change:     ") + chgStyle.Render(fmt.Sprintf("%+.2f%%", t.PriceChangePercent)),
+		labelStyle.Render("High 24h:   ") + valStyle.Render(ticker.FormatPrice(t.HighPrice)),
+		labelStyle.Render("Low 24h:    ") + valStyle.Render(ticker.FormatPrice(t.LowPrice)),
+		labelStyle.Render("Volume:     ") + valStyle.Render(ticker.FormatVolume(t.QuoteVolume)),
+	}
+
+	// Funding rate if available
+	fr := cv.FundingRate(t.Symbol)
+	if fr.Rate != 0 {
+		frStyle := posStyle
+		if fr.Rate > 0 {
+			frStyle = negStyle
+		}
+		lines = append(lines, labelStyle.Render("Funding:    ")+frStyle.Render(fmt.Sprintf("%+.4f%%", fr.Rate)))
+	}
+
+	// Volume spike
+	if t.VolumeSpiking {
+		lines = append(lines, labelStyle.Render("Vol Spike:  ")+posStyle.Render(fmt.Sprintf("%.1fx avg", t.VolumeSpikeRatio)))
+	}
+
+	// Sparkline
+	hist := cv.PriceHistory(t.Symbol)
+	if len(hist) > 1 {
+		lines = append(lines, "")
+		lines = append(lines, labelStyle.Render("Price Trend:"))
+		lines = append(lines, renderSparkline(hist, w-2))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func renderSparkline(data []float64, width int) string {
+	blocks := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	min, max := data[0], data[0]
+	for _, v := range data {
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+	}
+
+	span := max - min
+	if span == 0 {
+		span = 1
+	}
+
+	// Sample data to fit width
+	n := len(data)
+	if n > width {
+		step := float64(n) / float64(width)
+		sampled := make([]float64, width)
+		for i := range sampled {
+			sampled[i] = data[int(float64(i)*step)]
+		}
+		data = sampled
+	}
+
+	var sb strings.Builder
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#00ccff"))
+	for _, v := range data {
+		idx := int((v - min) / span * float64(len(blocks)-1))
+		if idx >= len(blocks) {
+			idx = len(blocks) - 1
+		}
+		sb.WriteRune(blocks[idx])
+	}
+	return style.Render(sb.String())
+}
+
+func buildCommands(cv *ui.CryptoView) []tuikit.Command {
+	return []tuikit.Command{
+		{
+			Name: "sort", Args: true, Hint: "Sort by column (volume, price, change, symbol)",
+			Run: func(args string) tea.Cmd {
+				col := strings.ToLower(strings.TrimSpace(args))
+				cv.SetSort(col)
+				return tuikit.NotifyCmd("sorted by "+col, 2*time.Second)
+			},
+		},
+		{
+			Name: "filter", Aliases: []string{"f"}, Args: true, Hint: "Filter: all, gainers, losers",
+			Run: func(args string) tea.Cmd {
+				mode := strings.ToLower(strings.TrimSpace(args))
+				cv.SetFilter(mode)
+				return tuikit.NotifyCmd("filter: "+mode, 2*time.Second)
+			},
+		},
+		{
+			Name: "go", Aliases: []string{"find", "g"}, Args: true, Hint: "Jump to symbol",
+			Run: func(args string) tea.Cmd {
+				sym := strings.TrimSpace(args)
+				if cv.GoToSymbol(sym) {
+					return tuikit.NotifyCmd("→ "+strings.ToUpper(sym), time.Second)
+				}
+				return tuikit.NotifyCmd(strings.ToUpper(sym)+" not found", 2*time.Second)
+			},
+		},
 	}
 }

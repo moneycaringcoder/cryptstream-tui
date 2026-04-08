@@ -111,9 +111,13 @@ type CryptoView struct {
 	newsArticles  []news.Article
 	newsOn        bool
 	newsFlash     int
-	notifyMsg     string
-	notifyTicks   int
 	focused       bool
+
+	DetailOverlay *tuikit.DetailOverlay[ticker.Ticker]
+
+	secVolSpikes *tuikit.CollapsibleSection
+	secFunding   *tuikit.CollapsibleSection
+	secLiqs      *tuikit.CollapsibleSection
 
 	fundingPoller *tuikit.Poller
 	fngPoller     *tuikit.Poller
@@ -137,6 +141,9 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		liqFlash:      make(map[string]time.Time),
 		correlations:  make(map[string]float64),
 		newsOn:        true,
+		secVolSpikes:  tuikit.NewCollapsibleSection("VOL SPIKES"),
+		secFunding:    tuikit.NewCollapsibleSection("FUNDING RATES"),
+		secLiqs:       tuikit.NewCollapsibleSection("LIQUIDATIONS"),
 	}
 	for _, t := range initial {
 		c.tickers[t.Symbol] = t
@@ -217,12 +224,6 @@ func (c *CryptoView) Update(msg tea.Msg) (tuikit.Component, tea.Cmd) {
 
 func (c *CryptoView) handleTick(msg tuikit.TickMsg) (tuikit.Component, tea.Cmd) {
 	// Flash countdowns
-	if c.notifyTicks > 0 {
-		c.notifyTicks--
-		if c.notifyTicks == 0 {
-			c.notifyMsg = ""
-		}
-	}
 	if c.newsFlash > 0 {
 		c.newsFlash--
 	}
@@ -405,12 +406,12 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 			sym := c.sorted[c.cursor].Symbol
 			wasStarred := c.Watchlist.IsStarred(sym)
 			c.Watchlist.Toggle(sym)
+			var msg string
 			if wasStarred {
-				c.notifyMsg = "★ unstarred " + strings.TrimSuffix(sym, "USDT")
+				msg = "★ unstarred " + strings.TrimSuffix(sym, "USDT")
 			} else {
-				c.notifyMsg = "★ starred " + strings.TrimSuffix(sym, "USDT")
+				msg = "★ starred " + strings.TrimSuffix(sym, "USDT")
 			}
-			c.notifyTicks = 20
 			if !c.panelOn {
 				c.panelOn = true
 				c.Cfg.PanelLayout = "right"
@@ -418,6 +419,7 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 			}
 			c.rebuildSorted()
 			c.clampCursor()
+			return c, tuikit.NotifyCmd(msg, 2*time.Second)
 		}
 		return c, tuikit.Consumed()
 	case "f":
@@ -450,6 +452,20 @@ func (c *CryptoView) handleKey(msg tea.KeyMsg) (tuikit.Component, tea.Cmd) {
 		c.visibleRows = c.tableVisibleRows()
 		c.clampCursor()
 		return c, tuikit.Consumed()
+	case "1":
+		c.secVolSpikes.Toggle()
+		return c, tuikit.Consumed()
+	case "2":
+		c.secFunding.Toggle()
+		return c, tuikit.Consumed()
+	case "3":
+		c.secLiqs.Toggle()
+		return c, tuikit.Consumed()
+	case "enter":
+		if c.DetailOverlay != nil && c.cursor >= 0 && c.cursor < len(c.sorted) {
+			c.DetailOverlay.Show(c.sorted[c.cursor])
+			return c, tuikit.Consumed()
+		}
 	case "esc":
 		if c.searchQuery != "" {
 			c.searchQuery = ""
@@ -548,6 +564,8 @@ func (c *CryptoView) KeyBindings() []tuikit.KeyBind {
 		{Key: "p", Label: "Toggle sidebar", Group: "DATA"},
 		{Key: "n", Label: "Toggle news", Group: "DATA"},
 		{Key: "d", Label: "DeFi yields", Group: "DATA"},
+		{Key: "enter", Label: "Coin detail", Group: "DATA"},
+		{Key: "1/2/3", Label: "Toggle panel sections", Group: "DATA"},
 		{Key: "/", Label: "Search symbols", Group: "SEARCH"},
 		{Key: "enter", Label: "Confirm search", Group: "SEARCH"},
 		{Key: "esc", Label: "Cancel / clear", Group: "SEARCH"},
@@ -563,6 +581,19 @@ func (c *CryptoView) SetSize(w, h int) {
 
 func (c *CryptoView) Focused() bool       { return c.focused }
 func (c *CryptoView) SetFocused(f bool)    { c.focused = f }
+
+// SelectedTicker returns the currently selected ticker, if any.
+func (c *CryptoView) SelectedTicker() (ticker.Ticker, bool) {
+	if c.cursor >= 0 && c.cursor < len(c.sorted) {
+		return c.sorted[c.cursor], true
+	}
+	return ticker.Ticker{}, false
+}
+
+// FundingRate returns the funding info for a symbol.
+func (c *CryptoView) FundingRate(symbol string) funding.Info {
+	return c.fundingRates[symbol]
+}
 
 // PriceHistory returns the sparkline data for a symbol.
 func (c *CryptoView) PriceHistory(symbol string) []float64 {
@@ -899,6 +930,46 @@ func TickerMsgFrom(t ticker.Ticker) tea.Msg {
 // LiqMsgFrom converts a liquidation.Liq into a liqMsg.
 func LiqMsgFrom(l liquidation.Liq) tea.Msg {
 	return liqMsg(l)
+}
+
+// SetSort changes the sort column by name: volume, price, change, symbol, correlation.
+func (c *CryptoView) SetSort(col string) bool {
+	sc := parseSortCol(col)
+	if col != "" && sc == c.sortCol {
+		c.sortAsc = !c.sortAsc // toggle direction if same column
+	} else {
+		c.sortCol = sc
+	}
+	c.rebuildSorted()
+	c.clampCursor()
+	return true
+}
+
+// SetFilter changes the filter mode by name: all, gainers, losers.
+func (c *CryptoView) SetFilter(mode string) bool {
+	fm := parseFilterMode(mode)
+	c.filterMode = fm
+	c.rebuildSorted()
+	c.cursor = 0
+	c.clampCursor()
+	return true
+}
+
+// GoToSymbol scrolls to a symbol in the sorted list.
+// Returns true if found.
+func (c *CryptoView) GoToSymbol(sym string) bool {
+	sym = strings.ToUpper(sym)
+	if !strings.HasSuffix(sym, "USDT") {
+		sym += "USDT"
+	}
+	for i, t := range c.sorted {
+		if t.Symbol == sym {
+			c.cursor = i
+			c.clampCursor()
+			return true
+		}
+	}
+	return false
 }
 
 // ReapplyConfig re-derives styles and state from the current config.
