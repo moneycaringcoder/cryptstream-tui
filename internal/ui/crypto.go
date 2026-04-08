@@ -193,10 +193,7 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 			}
 		case 1: // SYMBOL
 			if starred {
-				runes := []rune(cell)
-				if len(runes) > 1 {
-					return s.Star.Render(string(runes[:1])) + string(runes[1:])
-				}
+				return s.Star.Render(cell)
 			}
 		}
 		return cell
