@@ -6,10 +6,8 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/moneycaringcoder/tuikit-go v0.6.0
+	github.com/moneycaringcoder/tuikit-go v0.7.0
 )
-
-replace github.com/moneycaringcoder/tuikit-go => ../tuikit-go
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
