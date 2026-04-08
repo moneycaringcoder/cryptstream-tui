@@ -12,7 +12,7 @@ func (c *CryptoView) tableWidth() int {
 
 // tableVisibleRows returns the number of visible rows.
 func (c *CryptoView) tableVisibleRows() int {
-	rows := c.height - 2 // header + header separator; status bar is handled by App
+	rows := c.height - 4 // 2-line app header + table header + separator; status bar handled by App
 	if rows < 0 {
 		rows = 0
 	}
