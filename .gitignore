@@ -21,7 +21,12 @@ Thumbs.db
 # Internal docs / specs / plans
 docs/
 
-# Slop configs
+# AI tooling
 .claude/
+.omc/
 .opencode/
+.cursorrules
+.aider*
+.copilot/
+CLAUDE.md
 AGENTS.md

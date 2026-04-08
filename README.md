@@ -98,6 +98,7 @@ Configurable options include flash duration, sparkline length, sort defaults, fi
 
 ## Stack
 
+- [tuikit-go](https://github.com/moneycaringcoder/tuikit-go) — TUI component toolkit
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Styling
 - [gorilla/websocket](https://github.com/gorilla/websocket) — WebSocket client
