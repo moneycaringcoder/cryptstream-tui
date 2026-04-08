@@ -124,18 +124,24 @@ func (c *CryptoView) renderPanel() string {
 		lines = append(lines, border+labelStyled)
 	}
 
-	// Vol Spikes (only if any are spiking)
+	// Vol Spikes (collapsible, key: 1)
 	if len(ms.VolSpikes) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		lines = append(lines, border+" "+s.PanelLabel.Render("VOL SPIKES"))
-		for _, t := range ms.VolSpikes {
-			sym := padRight(t.DisplaySymbol(), 8)
-			ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
-			lines = append(lines, border+"  "+sym+" "+ratio)
+		arrow := "▾"
+		if c.secVolSpikes.Collapsed {
+			arrow = "▸"
+		}
+		lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("VOL SPIKES"))
+		if !c.secVolSpikes.Collapsed {
+			for _, t := range ms.VolSpikes {
+				sym := padRight(t.DisplaySymbol(), 8)
+				ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
+				lines = append(lines, border+"  "+sym+" "+ratio)
+			}
 		}
 	}
 
-	// Funding rate extremes (top 3 highest + lowest)
+	// Funding rate extremes (collapsible, key: 2)
 	if len(c.fundingRates) > 0 {
 		type fundPair struct {
 			sym  string
@@ -150,24 +156,28 @@ func (c *CryptoView) renderPanel() string {
 		if len(pairs) > 0 {
 			sort.Slice(pairs, func(i, j int) bool { return pairs[i].rate > pairs[j].rate })
 			lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-			lines = append(lines, border+" "+s.PanelLabel.Render("FUNDING RATES"))
-			show := 3
-			// Highest (most positive = longs pay)
-			for i := 0; i < show && i < len(pairs); i++ {
-				p := pairs[i]
-				sym := padRight(p.sym, 8)
-				rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", p.rate))
-				lines = append(lines, border+"  "+sym+" "+rate)
+			arrow := "▾"
+			if c.secFunding.Collapsed {
+				arrow = "▸"
 			}
-			// Lowest (most negative = shorts pay)
-			for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
-				p := pairs[i]
-				if p.rate >= 0 {
-					continue
+			lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("FUNDING RATES"))
+			if !c.secFunding.Collapsed {
+				show := 3
+				for i := 0; i < show && i < len(pairs); i++ {
+					p := pairs[i]
+					sym := padRight(p.sym, 8)
+					rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", p.rate))
+					lines = append(lines, border+"  "+sym+" "+rate)
 				}
-				sym := padRight(p.sym, 8)
-				rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", p.rate))
-				lines = append(lines, border+"  "+sym+" "+rate)
+				for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
+					p := pairs[i]
+					if p.rate >= 0 {
+						continue
+					}
+					sym := padRight(p.sym, 8)
+					rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", p.rate))
+					lines = append(lines, border+"  "+sym+" "+rate)
+				}
 			}
 		}
 	}
@@ -206,35 +216,30 @@ func (c *CryptoView) renderPanel() string {
 		lines = append(lines, border+" "+leftPad+rightStr)
 	}
 
-	// Liquidation feed (if any)
+	// Liquidation feed (collapsible, key: 3)
 	if len(c.recentLiqs) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
-		liqColW := (inner - 1) / 2 // 2 liqs per line
-		for i := 0; i < len(c.recentLiqs); i += 2 {
-			left := c.formatLiqCell(s, c.recentLiqs[i], liqColW)
-			right := ""
-			if i+1 < len(c.recentLiqs) {
-				right = c.formatLiqCell(s, c.recentLiqs[i+1], liqColW)
+		arrow := "▾"
+		if c.secLiqs.Collapsed {
+			arrow = "▸"
+		}
+		lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("LIQUIDATIONS"))
+		if !c.secLiqs.Collapsed {
+			liqColW := (inner - 1) / 2
+			for i := 0; i < len(c.recentLiqs); i += 2 {
+				left := c.formatLiqCell(s, c.recentLiqs[i], liqColW)
+				right := ""
+				if i+1 < len(c.recentLiqs) {
+					right = c.formatLiqCell(s, c.recentLiqs[i+1], liqColW)
+				}
+				lines = append(lines, border+" "+left+right)
 			}
-			lines = append(lines, border+" "+left+right)
 		}
 	}
 
-	// Fill remaining height, reserving 2 lines at bottom for notification box
+	// Fill remaining height
 	totalNeeded := c.height
-	notiLines := 2 // separator + message
-	for len(lines) < totalNeeded-notiLines {
-		lines = append(lines, border)
-	}
-
-	// Notification box (always at very bottom of sidebar)
-	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-	if c.notifyMsg != "" {
-		notiStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
-		msg := truncateRunes(c.notifyMsg, inner)
-		lines = append(lines, border+" "+notiStyle.Render(msg))
-	} else {
+	for len(lines) < totalNeeded {
 		lines = append(lines, border)
 	}
 
