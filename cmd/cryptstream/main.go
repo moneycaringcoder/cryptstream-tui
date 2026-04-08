@@ -8,16 +8,19 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	tuikit "github.com/moneycaringcoder/tuikit-go"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/binance"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ui"
-	"github.com/charmbracelet/lipgloss"
 )
 
+var version = "dev"
+
 func main() {
+	tuikit.CleanupOldBinary()
 	config.EnsureExists()
 	cfg := config.Load()
 
@@ -49,6 +52,13 @@ func main() {
 		tuikit.WithOverlay("Detail", "", detailOverlay),
 		tuikit.WithTickInterval(100*time.Millisecond),
 		tuikit.WithMouseSupport(),
+		tuikit.WithAutoUpdate(tuikit.UpdateConfig{
+			Owner:      "moneycaringcoder",
+			Repo:       "cryptstream-tui",
+			BinaryName: "cryptstream",
+			Version:    version,
+			Mode:       tuikit.UpdateNotify,
+		}),
 	)
 
 	// Ticker stream
