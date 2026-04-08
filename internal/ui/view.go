@@ -32,11 +32,13 @@ func (c *CryptoView) renderTable(tableW int) string {
 	c.table.SetFocused(c.focused)
 	sb.WriteString(c.table.View())
 
-	// News band sits between table and footer (status bar handles footer)
+	// News band sits between table and footer
 	newsH := c.newsHeight()
 	if newsH > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(c.renderNewsBand(s, tableW))
+		sb.WriteString("\n")
+		sb.WriteString(s.Sep.Render(strings.Repeat("─", tableW)))
 	}
 
 	return sb.String()
@@ -44,15 +46,13 @@ func (c *CryptoView) renderTable(tableW int) string {
 
 // renderNewsBand renders the news ticker band.
 func (c *CryptoView) renderNewsBand(s Styles, w int) string {
-	var sb strings.Builder
-
 	articles := c.newsArticles
 	if len(articles) == 0 {
 		return ""
 	}
 
-	sb.WriteString(s.Sep.Render(strings.Repeat("─", w)))
-	sb.WriteByte('\n')
+	lines := make([]string, 0, 6)
+	lines = append(lines, s.Sep.Render(strings.Repeat("─", w)))
 
 	newsLines := 5
 	agoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
@@ -63,7 +63,7 @@ func (c *CryptoView) renderNewsBand(s Styles, w int) string {
 
 	for i := 0; i < newsLines; i++ {
 		if i >= len(articles) {
-			sb.WriteByte('\n')
+			lines = append(lines, "")
 			continue
 		}
 		a := articles[i]
@@ -89,13 +89,12 @@ func (c *CryptoView) renderNewsBand(s Styles, w int) string {
 
 		if i == 0 && c.newsFlash > 0 {
 			plainLine := " " + agoPad + " " + src + dot + title + " "
-			sb.WriteString(flashStyle.Render(plainLine))
+			lines = append(lines, flashStyle.Render(plainLine))
 		} else {
-			sb.WriteString(" " + agoStyle.Render(agoPad) + " " + srcStyle.Render(src) + dotStyle.Render(dot) + titleStyle.Render(title) + " ")
+			lines = append(lines, " "+agoStyle.Render(agoPad)+" "+srcStyle.Render(src)+dotStyle.Render(dot)+titleStyle.Render(title)+" ")
 		}
-		sb.WriteByte('\n')
 	}
 
-	return sb.String()
+	return strings.Join(lines, "\n")
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	tuikit "github.com/moneycaringcoder/tuikit-go"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/config"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/defiyields"
@@ -144,11 +145,11 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 	c.Panel = NewMarketPanel(c.styles)
 
 	columns := []tuikit.Column{
-		{Title: "#", Width: 5, Align: tuikit.Right},
+		{Title: "#", Width: 3, MaxWidth: 4, Align: tuikit.Right},
 		{Title: "SYMBOL", Width: 14, Sortable: true},
 		{Title: "PRICE", Width: 20, Align: tuikit.Right, Sortable: true},
 		{Title: "CHANGE", Width: 10, Align: tuikit.Right, Sortable: true},
-		{Title: "TREND", Width: 22, MinWidth: 70},
+		{Title: "TREND", Width: 22, MaxWidth: 20, MinWidth: 70, NoRowStyle: true, Align: tuikit.Center},
 		{Title: "βBTC", Width: 8, Align: tuikit.Right, MinWidth: 90, Sortable: true},
 		{Title: "VOLUME", Width: 15, Align: tuikit.Right, Sortable: true},
 	}
@@ -176,41 +177,11 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 			return styled
 		}
 
-		// Determine flash state
+		// Foreground-only styling — RowStyler owns all backgrounds
 		t := c.tickers[symbol]
-		flashing := time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral
-		liqFlashing := time.Now().Before(c.liqFlash[symbol])
 		starred := c.Watchlist.IsStarred(symbol)
 		corr := c.correlations[symbol]
 
-		if flashing {
-			return flashStyle(s, t.Flash).Render(cell)
-		}
-		if liqFlashing {
-			return s.LiqFlash.Render(cell)
-		}
-		if isCursor {
-			switch colIdx {
-			case 3: // CHANGE
-				return s.CursorRow.Foreground(changeColor(s, t.PriceChangePercent)).Render(cell)
-			case 5: // βBTC
-				return s.CursorRow.Foreground(corrColor(s, corr)).Render(cell)
-			case 6: // VOLUME
-				if t.VolumeSpiking {
-					return s.CursorRow.Foreground(s.ColorVolSpike).Render(cell)
-				}
-			case 1: // SYMBOL
-				if starred {
-					runes := []rune(cell)
-					if len(runes) > 1 {
-						return s.CursorRow.Foreground(s.ColorStar).Render(string(runes[:1])) + s.CursorRow.Render(string(runes[1:]))
-					}
-				}
-			}
-			return s.CursorRow.Render(cell)
-		}
-
-		// Non-cursor styling
 		switch colIdx {
 		case 3: // CHANGE
 			return changeStyle(s, t.PriceChangePercent).Render(cell)
@@ -237,8 +208,31 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		return false
 	}
 
+	rowStyler := func(row tuikit.Row, idx int, isCursor bool, theme tuikit.Theme) *lipgloss.Style {
+		if len(row) < 2 {
+			return nil
+		}
+		symbol := row[1] + "USDT"
+		t := c.tickers[symbol]
+		if time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral {
+			st := flashStyle(c.styles, t.Flash)
+			return &st
+		}
+		if time.Now().Before(c.liqFlash[symbol]) {
+			st := c.styles.LiqFlash
+			return &st
+		}
+		if isCursor {
+			st := c.styles.CursorRow
+			return &st
+		}
+		return nil
+	}
+
 	c.table = tuikit.NewTable(columns, nil, tuikit.TableOpts{
+		HeaderStyle:  c.styles.Header,
 		CellRenderer: cellRenderer,
+		RowStyler:    rowStyler,
 		SortFunc:     sortFunc,
 	})
 
@@ -257,17 +251,24 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		}
 		cell := row[colIdx]
 		s := c.styles
-		if isCursor {
-			return s.CursorRow.Render(cell)
-		}
 		if colIdx == 4 { // APY
 			return s.Positive.Render(cell)
 		}
 		return cell
 	}
 
+	defiRowStyler := func(row tuikit.Row, idx int, isCursor bool, theme tuikit.Theme) *lipgloss.Style {
+		if isCursor {
+			st := c.styles.CursorRow
+			return &st
+		}
+		return nil
+	}
+
 	c.defiTable = tuikit.NewTable(defiColumns, nil, tuikit.TableOpts{
 		Sortable:     true,
+		HeaderStyle:  c.styles.Header,
+		RowStyler:    defiRowStyler,
 		CellRenderer: defiCellRenderer,
 	})
 
@@ -629,6 +630,7 @@ func (c *CryptoView) SetSize(w, h int) {
 
 func (c *CryptoView) Focused() bool       { return c.focused }
 func (c *CryptoView) SetFocused(f bool)    { c.focused = f }
+func (c *CryptoView) CapturesInput() bool  { return c.searching }
 
 // SelectedTicker returns the currently selected ticker, if any.
 func (c *CryptoView) SelectedTicker() (ticker.Ticker, bool) {

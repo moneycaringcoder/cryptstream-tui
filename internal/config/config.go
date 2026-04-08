@@ -83,7 +83,7 @@ func Default() Config {
 		SortAscending:   false,
 
 		DefaultFilter:  "all",
-		FilterCount:    20,
+		FilterCount:    100,
 		FlashThreshold: 0.0001,
 
 		VolumeWindow:          50,

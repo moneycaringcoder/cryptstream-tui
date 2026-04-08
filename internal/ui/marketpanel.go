@@ -98,27 +98,26 @@ func (p *MarketPanel) View() string {
 	s := p.styles
 	ms := p.marketStats
 	w := p.width
-	inner := w - 2
+	inner := w - 1 // 1 char padding
 
 	var lines []string
-	border := s.PanelBorder.Render("┃")
 
 	// Pinned references (BTC, ETH, SOL + starred)
 	for _, t := range ms.Pinned {
 		fr := p.fundingRates[t.Symbol]
-		lines = append(lines, border+" "+p.formatRefLine(t, inner, fr))
+		lines = append(lines, " "+p.formatRefLine(t, inner, fr))
 	}
 
 	// Separator
-	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+	lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 
 	// Aggregate stats (compact 2-line layout)
 	line1 := s.PanelLabel.Render("Vol ") + ticker.FormatVolume(ms.TotalVolume) + "  " + s.PanelLabel.Render("Avg ") + formatChange(ms.AvgChange)
-	lines = append(lines, border+" "+line1)
+	lines = append(lines, " "+line1)
 	line2 := s.Positive.Render(fmt.Sprintf("↑%d", ms.GainerCount)) + " " +
 		s.Negative.Render(fmt.Sprintf("↓%d", ms.LoserCount)) + "  " +
 		s.PanelLabel.Render("BTC ") + fmt.Sprintf("%.1f%%", ms.BtcDominance)
-	lines = append(lines, border+" "+line2)
+	lines = append(lines, " "+line2)
 
 	// Market breadth bar (gainers vs losers visual)
 	total := ms.GainerCount + ms.LoserCount
@@ -130,12 +129,12 @@ func (p *MarketPanel) View() string {
 		}
 		redW := barW - greenW
 		bar := s.Positive.Render(strings.Repeat("█", greenW)) + s.Negative.Render(strings.Repeat("█", redW))
-		lines = append(lines, border+" "+bar)
+		lines = append(lines, " "+bar)
 	}
 
 	// Fear & Greed gauge
 	if p.fearGreed.Value > 0 {
-		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 		fg := p.fearGreed
 		barW := inner - 1
 		filled := barW * fg.Value / 100
@@ -158,23 +157,23 @@ func (p *MarketPanel) View() string {
 		bar := barStyle.Render(strings.Repeat("█", filled)) + dimBlock.Render(strings.Repeat("░", barW-filled))
 		label := fmt.Sprintf(" %s %d", fg.Label, fg.Value)
 		labelStyled := barStyle.Render(label)
-		lines = append(lines, border+" "+bar)
-		lines = append(lines, border+labelStyled)
+		lines = append(lines, " "+bar)
+		lines = append(lines, labelStyled)
 	}
 
 	// Vol Spikes (collapsible, key: 1)
 	if len(ms.VolSpikes) > 0 {
-		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 		arrow := "▾"
 		if p.secVolSpikes.Collapsed {
 			arrow = "▸"
 		}
-		lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("VOL SPIKES"))
+		lines = append(lines, " "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("VOL SPIKES"))
 		if !p.secVolSpikes.Collapsed {
 			for _, t := range ms.VolSpikes {
 				sym := padRight(t.DisplaySymbol(), 8)
 				ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
-				lines = append(lines, border+"  "+sym+" "+ratio)
+				lines = append(lines, "  "+sym+" "+ratio)
 			}
 		}
 	}
@@ -193,19 +192,19 @@ func (p *MarketPanel) View() string {
 		}
 		if len(pairs) > 0 {
 			sort.Slice(pairs, func(i, j int) bool { return pairs[i].rate > pairs[j].rate })
-			lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+			lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 			arrow := "▾"
 			if p.secFunding.Collapsed {
 				arrow = "▸"
 			}
-			lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("FUNDING RATES"))
+			lines = append(lines, " "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("FUNDING RATES"))
 			if !p.secFunding.Collapsed {
 				show := 3
 				for i := 0; i < show && i < len(pairs); i++ {
 					fp := pairs[i]
 					sym := padRight(fp.sym, 8)
 					rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", fp.rate))
-					lines = append(lines, border+"  "+sym+" "+rate)
+					lines = append(lines, "  "+sym+" "+rate)
 				}
 				for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
 					fp := pairs[i]
@@ -214,19 +213,19 @@ func (p *MarketPanel) View() string {
 					}
 					sym := padRight(fp.sym, 8)
 					rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", fp.rate))
-					lines = append(lines, border+"  "+sym+" "+rate)
+					lines = append(lines, "  "+sym+" "+rate)
 				}
 			}
 		}
 	}
 
 	// Separator
-	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+	lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 
 	// Gainers / Losers side by side
 	colGap := 2
 	colW := (inner - colGap) / 2
-	lines = append(lines, border+" "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS"))
+	lines = append(lines, " "+s.PanelLabel.Render(padRight("GAINERS", colW+colGap)+"LOSERS"))
 	limit := 5
 	for i := 0; i < limit; i++ {
 		leftPad := strings.Repeat(" ", colW+colGap)
@@ -251,17 +250,17 @@ func (p *MarketPanel) View() string {
 			}
 			rightStr = sym + strings.Repeat(" ", gap) + s.Negative.Render(chg)
 		}
-		lines = append(lines, border+" "+leftPad+rightStr)
+		lines = append(lines, " "+leftPad+rightStr)
 	}
 
 	// Liquidation feed (collapsible, key: 3)
 	if len(p.recentLiqs) > 0 {
-		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
+		lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 		arrow := "▾"
 		if p.secLiqs.Collapsed {
 			arrow = "▸"
 		}
-		lines = append(lines, border+" "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("LIQUIDATIONS"))
+		lines = append(lines, " "+s.PanelBorder.Render(arrow)+" "+s.PanelLabel.Render("LIQUIDATIONS"))
 		if !p.secLiqs.Collapsed {
 			liqColW := (inner - 1) / 2
 			for i := 0; i < len(p.recentLiqs); i += 2 {
@@ -270,7 +269,7 @@ func (p *MarketPanel) View() string {
 				if i+1 < len(p.recentLiqs) {
 					right = p.formatLiqCell(s, p.recentLiqs[i+1], liqColW)
 				}
-				lines = append(lines, border+" "+left+right)
+				lines = append(lines, " "+left+right)
 			}
 		}
 	}
@@ -278,11 +277,19 @@ func (p *MarketPanel) View() string {
 	// Fill remaining height
 	totalNeeded := p.height
 	for len(lines) < totalNeeded {
-		lines = append(lines, border)
+		lines = append(lines, "")
 	}
 
 	if len(lines) > totalNeeded {
 		lines = lines[:totalNeeded]
+	}
+
+	// Pad every line to fill the full panel width so JoinHorizontal aligns correctly
+	for i, line := range lines {
+		vis := lipgloss.Width(line)
+		if vis < w {
+			lines[i] = line + strings.Repeat(" ", w-vis)
+		}
 	}
 
 	return strings.Join(lines, "\n")
