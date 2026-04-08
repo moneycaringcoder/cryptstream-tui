@@ -163,6 +163,7 @@ func (p *MarketPanel) View() string {
 
 	// Vol Spikes (collapsible, key: 1)
 	if len(ms.VolSpikes) > 0 {
+		lines = append(lines, "")
 		lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 		arrow := "▾"
 		if p.secVolSpikes.Collapsed {
@@ -173,7 +174,7 @@ func (p *MarketPanel) View() string {
 			for _, t := range ms.VolSpikes {
 				sym := padRight(t.DisplaySymbol(), 8)
 				ratio := s.VolSpike.Render(fmt.Sprintf("%.1fx", t.VolumeSpikeRatio))
-				lines = append(lines, "  "+sym+" "+ratio)
+				lines = append(lines, "  "+sym+"  "+ratio)
 			}
 		}
 	}
@@ -192,6 +193,7 @@ func (p *MarketPanel) View() string {
 		}
 		if len(pairs) > 0 {
 			sort.Slice(pairs, func(i, j int) bool { return pairs[i].rate > pairs[j].rate })
+			lines = append(lines, "")
 			lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 			arrow := "▾"
 			if p.secFunding.Collapsed {
@@ -204,7 +206,7 @@ func (p *MarketPanel) View() string {
 					fp := pairs[i]
 					sym := padRight(fp.sym, 8)
 					rate := s.Negative.Render(fmt.Sprintf("%+.3f%%", fp.rate))
-					lines = append(lines, "  "+sym+" "+rate)
+					lines = append(lines, "  "+sym+"  "+rate)
 				}
 				for i := len(pairs) - 1; i >= 0 && i >= len(pairs)-show; i-- {
 					fp := pairs[i]
@@ -213,13 +215,14 @@ func (p *MarketPanel) View() string {
 					}
 					sym := padRight(fp.sym, 8)
 					rate := s.Positive.Render(fmt.Sprintf("%+.3f%%", fp.rate))
-					lines = append(lines, "  "+sym+" "+rate)
+					lines = append(lines, "  "+sym+"  "+rate)
 				}
 			}
 		}
 	}
 
 	// Separator
+	lines = append(lines, "")
 	lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 
 	// Gainers / Losers side by side
@@ -255,6 +258,7 @@ func (p *MarketPanel) View() string {
 
 	// Liquidation feed (collapsible, key: 3)
 	if len(p.recentLiqs) > 0 {
+		lines = append(lines, "")
 		lines = append(lines, s.PanelBorder.Render(strings.Repeat("─", w)))
 		arrow := "▾"
 		if p.secLiqs.Collapsed {
