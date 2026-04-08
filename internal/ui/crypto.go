@@ -151,7 +151,7 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		s := c.styles
 		symbol := ""
 		if len(row) > 1 {
-			symbol = row[1] + "USDT"
+			symbol = strings.TrimPrefix(row[1], "★ ") + "USDT"
 		}
 
 		cell := row[colIdx]
@@ -199,7 +199,7 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		if len(row) < 2 {
 			return nil
 		}
-		symbol := row[1] + "USDT"
+		symbol := strings.TrimPrefix(row[1], "★ ") + "USDT"
 		t := c.tickers[symbol]
 		if time.Now().Before(t.FlashUntil) && t.Flash != ticker.FlashNeutral {
 			st := flashStyle(c.styles, t.Flash)
@@ -220,7 +220,7 @@ func NewCryptoView(initial []ticker.Ticker, cfg *config.Config) *CryptoView {
 		if len(row) < 2 {
 			return ""
 		}
-		symbol := row[1] + "USDT"
+		symbol := strings.TrimPrefix(row[1], "★ ") + "USDT"
 		t := c.tickers[symbol]
 		return c.renderDetailBar(t, width)
 	}
