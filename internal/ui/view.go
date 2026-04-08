@@ -9,93 +9,84 @@ import (
 )
 
 // View renders the full TUI frame as a string.
-func (m Model) View() string {
-	if m.termW == 0 {
+func (c *CryptoView) View() string {
+	if c.width == 0 {
 		return ""
 	}
 
-	if m.showHelp {
-		return m.renderHelpView()
-	}
-
-	if m.configUI.active {
-		return m.renderConfigView()
-	}
-
-	tableW := m.tableWidth()
+	tableW := c.tableWidth()
 	var tableStr string
-	if m.showDefi {
-		tableStr = m.renderDefiTable(tableW)
+	if c.showDefi {
+		tableStr = c.renderDefiTable(tableW)
 	} else {
-		tableStr = m.renderTable(tableW)
+		tableStr = c.renderTable(tableW)
 	}
 
-	if !m.panelVisible() {
+	if !c.panelVisible() {
 		return tableStr
 	}
 
-	panelStr := m.renderPanel()
+	panelStr := c.renderPanel()
 	return lipgloss.JoinHorizontal(lipgloss.Top, tableStr, panelStr)
 }
 
 // renderTable renders the main table content at the given width.
-func (m Model) renderTable(tableW int) string {
-	s := m.styles
+func (c *CryptoView) renderTable(tableW int) string {
+	s := c.styles
 	var sb strings.Builder
 
-	sb.WriteString(RenderHeader(s, tableW, m.sortCol, m.sortAsc))
+	sb.WriteString(RenderHeader(s, tableW, c.sortCol, c.sortAsc))
 	sb.WriteByte('\n')
 
 	sb.WriteString(RenderSeparator(s, tableW))
 	sb.WriteByte('\n')
 
-	visRows := m.visibleRows
-	limit := len(m.sorted)
-	if visRows > 0 && limit > m.offset+visRows {
-		limit = m.offset + visRows
+	visRows := c.visibleRows
+	limit := len(c.sorted)
+	if visRows > 0 && limit > c.offset+visRows {
+		limit = c.offset + visRows
 	}
 
-	for i := m.offset; i < limit; i++ {
-		t := m.sorted[i]
-		isCursor := i == m.cursor
-		spark := m.priceHistory[t.Symbol]
-		starred := m.watchlist.IsStarred(t.Symbol)
-		liqFlash := time.Now().Before(m.liqFlash[t.Symbol])
-		corr := m.correlations[t.Symbol]
+	for i := c.offset; i < limit; i++ {
+		t := c.sorted[i]
+		isCursor := i == c.cursor
+		spark := c.priceHistory[t.Symbol]
+		starred := c.Watchlist.IsStarred(t.Symbol)
+		liqFlash := time.Now().Before(c.liqFlash[t.Symbol])
+		corr := c.correlations[t.Symbol]
 		sb.WriteString(RenderRow(s, i+1, t, tableW, isCursor, spark, starred, liqFlash, corr))
 		sb.WriteByte('\n')
 	}
 
-	filled := (limit - m.offset) + 2
-	newsH := m.newsHeight()
-	targetH := m.termH - 2 - newsH // minus footer separator + footer + news
+	filled := (limit - c.offset) + 2
+	newsH := c.newsHeight()
+	targetH := c.height - 2 - newsH
 	for filled < targetH {
 		sb.WriteByte('\n')
 		filled++
 	}
 
-	// News band (above footer)
 	if newsH > 0 {
-		sb.WriteString(m.renderNewsBand(s, tableW))
+		sb.WriteString(c.renderNewsBand(s, tableW))
 	}
 
 	sb.WriteString(RenderSeparator(s, tableW))
 	sb.WriteByte('\n')
 
 	btcPrice := 0.0
-	if btc, ok := m.tickers["BTCUSDT"]; ok {
+	if btc, ok := c.tickers["BTCUSDT"]; ok {
 		btcPrice = btc.LastPrice
 	}
-	sb.WriteString(RenderFooter(s, len(m.tickers), m.connected, tableW, btcPrice, m.filterMode, m.searching, m.searchQuery, m.cursor, len(m.sorted)))
+	sb.WriteString(RenderFooter(s, len(c.tickers), c.connected, tableW, btcPrice, c.filterMode, c.searching, c.searchQuery, c.cursor, len(c.sorted)))
 
 	return sb.String()
 }
 
-// renderNewsBand renders the news ticker band (newest first, no auto-scroll).
-func (m Model) renderNewsBand(s Styles, w int) string {
+// renderNewsBand renders the news ticker band.
+func (c *CryptoView) renderNewsBand(s Styles, w int) string {
 	var sb strings.Builder
 
-	articles := m.newsArticles
+	articles := c.newsArticles
 	if len(articles) == 0 {
 		return ""
 	}
@@ -136,8 +127,7 @@ func (m Model) renderNewsBand(s Styles, w int) string {
 		}
 		title = padRight(title, remaining)
 
-		// Flash the newest article when new data arrives
-		if i == 0 && m.newsFlash > 0 {
+		if i == 0 && c.newsFlash > 0 {
 			plainLine := " " + agoPad + " " + src + dot + title + " "
 			sb.WriteString(flashStyle.Render(plainLine))
 		} else {

@@ -9,8 +9,8 @@ import (
 )
 
 // renderDefiTable renders the DeFi yields overlay in the table area.
-func (m Model) renderDefiTable(tableW int) string {
-	s := m.styles
+func (c *CryptoView) renderDefiTable(tableW int) string {
+	s := c.styles
 	var sb strings.Builder
 
 	// Header
@@ -45,14 +45,14 @@ func (m Model) renderDefiTable(tableW int) string {
 	sb.WriteByte('\n')
 
 	// Rows
-	visRows := m.visibleRows - 1 // one extra header line used by title
-	pools := m.defiPools
+	visRows := c.visibleRows - 1 // one extra header line used by title
+	pools := c.defiPools
 
 	maxScroll := len(pools) - visRows
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	scroll := m.defiScroll
+	scroll := c.defiScroll
 	if scroll > maxScroll {
 		scroll = maxScroll
 	}
@@ -64,7 +64,7 @@ func (m Model) renderDefiTable(tableW int) string {
 
 	for i := scroll; i < end; i++ {
 		p := pools[i]
-		isCursor := i == m.defiCursor
+		isCursor := i == c.defiCursor
 		rank := fmt.Sprintf("%d", i+1)
 		apy := fmt.Sprintf("%.2f%%", p.APY)
 		tvl := ticker.FormatVolume(p.TVL)
@@ -92,9 +92,9 @@ func (m Model) renderDefiTable(tableW int) string {
 	}
 
 	// Fill remaining height
-	newsH := m.newsHeight()
+	newsH := c.newsHeight()
 	filled := (end - scroll) + 3 // title + sep + col header
-	targetH := m.termH - 2 - newsH // minus footer sep + footer + news
+	targetH := c.height - 2 - newsH // minus footer sep + footer + news
 	for filled < targetH {
 		sb.WriteByte('\n')
 		filled++
@@ -102,7 +102,7 @@ func (m Model) renderDefiTable(tableW int) string {
 
 	// News band
 	if newsH > 0 {
-		sb.WriteString(m.renderNewsBand(s, tableW))
+		sb.WriteString(c.renderNewsBand(s, tableW))
 	}
 
 	// Footer

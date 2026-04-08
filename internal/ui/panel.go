@@ -18,32 +18,32 @@ const (
 )
 
 // panelVisible returns whether the panel should be shown given current dimensions.
-func (m Model) panelVisible() bool {
-	if !m.panelOn {
+func (c *CryptoView) panelVisible() bool {
+	if !c.panelOn {
 		return false
 	}
-	return m.termW >= minTermWForPanel
+	return c.width >= minTermWForPanel
 }
 
 // tableWidth returns the width available for the table, accounting for panel.
-func (m Model) tableWidth() int {
-	if m.panelVisible() {
-		return m.termW - panelWidthRight - 1 // 1 for border
+func (c *CryptoView) tableWidth() int {
+	if c.panelVisible() {
+		return c.width - panelWidthRight - 1 // 1 for border
 	}
-	return m.termW
+	return c.width
 }
 
 // tableVisibleRows returns the number of visible rows.
 // newsHeight returns the number of lines the news band occupies.
-func (m Model) newsHeight() int {
-	if !m.newsOn || len(m.newsArticles) == 0 {
+func (c *CryptoView) newsHeight() int {
+	if !c.newsOn || len(c.newsArticles) == 0 {
 		return 0
 	}
 	return 6 // separator + 5 headline lines
 }
 
-func (m Model) tableVisibleRows() int {
-	rows := m.termH - 4 - m.newsHeight() // header + separator + footer separator + footer + news
+func (c *CryptoView) tableVisibleRows() int {
+	rows := c.height - 4 - c.newsHeight() // header + separator + footer separator + footer + news
 	if rows < 0 {
 		rows = 0
 	}
@@ -51,13 +51,13 @@ func (m Model) tableVisibleRows() int {
 }
 
 // renderPanel renders the market pulse sidebar.
-func (m Model) renderPanel() string {
-	if !m.panelVisible() {
+func (c *CryptoView) renderPanel() string {
+	if !c.panelVisible() {
 		return ""
 	}
 
-	s := m.styles
-	ms := m.marketStats
+	s := c.styles
+	ms := c.marketStats
 	w := panelWidthRight
 	inner := w - 2 // leave space for border char + padding
 
@@ -66,8 +66,8 @@ func (m Model) renderPanel() string {
 
 	// Pinned references (BTC, ETH, SOL + starred)
 	for _, t := range ms.Pinned {
-		fr := m.fundingRates[t.Symbol]
-		lines = append(lines, border+" "+m.formatRefLine(t, inner, fr))
+		fr := c.fundingRates[t.Symbol]
+		lines = append(lines, border+" "+c.formatRefLine(t, inner, fr))
 	}
 
 	// Separator
@@ -95,9 +95,9 @@ func (m Model) renderPanel() string {
 	}
 
 	// Fear & Greed gauge
-	if m.fearGreed.Value > 0 {
+	if c.fearGreed.Value > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-		fg := m.fearGreed
+		fg := c.fearGreed
 		barW := inner - 1 // width for the gauge bar
 		filled := barW * fg.Value / 100
 		if filled > barW {
@@ -136,13 +136,13 @@ func (m Model) renderPanel() string {
 	}
 
 	// Funding rate extremes (top 3 highest + lowest)
-	if len(m.fundingRates) > 0 {
+	if len(c.fundingRates) > 0 {
 		type fundPair struct {
 			sym  string
 			rate float64
 		}
 		var pairs []fundPair
-		for sym, info := range m.fundingRates {
+		for sym, info := range c.fundingRates {
 			if info.Rate != 0 {
 				pairs = append(pairs, fundPair{sym: strings.TrimSuffix(sym, "USDT"), rate: info.Rate})
 			}
@@ -207,22 +207,22 @@ func (m Model) renderPanel() string {
 	}
 
 	// Liquidation feed (if any)
-	if len(m.recentLiqs) > 0 {
+	if len(c.recentLiqs) > 0 {
 		lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
 		lines = append(lines, border+" "+s.PanelLabel.Render("LIQUIDATIONS"))
 		liqColW := (inner - 1) / 2 // 2 liqs per line
-		for i := 0; i < len(m.recentLiqs); i += 2 {
-			left := m.formatLiqCell(s, m.recentLiqs[i], liqColW)
+		for i := 0; i < len(c.recentLiqs); i += 2 {
+			left := c.formatLiqCell(s, c.recentLiqs[i], liqColW)
 			right := ""
-			if i+1 < len(m.recentLiqs) {
-				right = m.formatLiqCell(s, m.recentLiqs[i+1], liqColW)
+			if i+1 < len(c.recentLiqs) {
+				right = c.formatLiqCell(s, c.recentLiqs[i+1], liqColW)
 			}
 			lines = append(lines, border+" "+left+right)
 		}
 	}
 
 	// Fill remaining height, reserving 2 lines at bottom for notification box
-	totalNeeded := m.termH
+	totalNeeded := c.height
 	notiLines := 2 // separator + message
 	for len(lines) < totalNeeded-notiLines {
 		lines = append(lines, border)
@@ -230,9 +230,9 @@ func (m Model) renderPanel() string {
 
 	// Notification box (always at very bottom of sidebar)
 	lines = append(lines, border+s.PanelBorder.Render(strings.Repeat("─", w-1)))
-	if m.notifyMsg != "" {
+	if c.notifyMsg != "" {
 		notiStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
-		msg := truncateRunes(m.notifyMsg, inner)
+		msg := truncateRunes(c.notifyMsg, inner)
 		lines = append(lines, border+" "+notiStyle.Render(msg))
 	} else {
 		lines = append(lines, border)
@@ -246,8 +246,8 @@ func (m Model) renderPanel() string {
 }
 
 // formatRefLine formats a pinned coin reference for the panel.
-func (m Model) formatRefLine(t ticker.Ticker, maxWidth int, fr funding.Info) string {
-	s := m.styles
+func (c *CryptoView) formatRefLine(t ticker.Ticker, maxWidth int, fr funding.Info) string {
+	s := c.styles
 	if t.Symbol == "" {
 		return ""
 	}
@@ -272,7 +272,7 @@ func (m Model) formatRefLine(t ticker.Ticker, maxWidth int, fr funding.Info) str
 }
 
 // formatLiqCell renders a single liquidation entry padded to colW.
-func (m Model) formatLiqCell(s Styles, l liquidation.Liq, colW int) string {
+func (c *CryptoView) formatLiqCell(s Styles, l liquidation.Liq, colW int) string {
 	sym := l.DisplaySymbol()
 	sideStr := l.Side
 	side := s.Negative.Render(sideStr)
