@@ -97,14 +97,14 @@ func Default() Config {
 		MaxBackoff: Duration(30 * time.Second),
 
 		Theme: ThemeConfig{
-			Green:      "#00ff88",
-			Red:        "#ff4444",
-			Dim:        "#555555",
-			Separator:  "#333333",
-			Cursor:     "#1a1a2e",
-			Footer:     "#666666",
-			FlashGreen: "#1a3a2a",
-			FlashRed:   "#3a1a1a",
+			Green:      "#22c55e",
+			Red:        "#ef4444",
+			Dim:        "#6b7280",
+			Separator:  "#3b3b3b",
+			Cursor:     "#1e293b",
+			Footer:     "#6b7280",
+			FlashGreen: "#1a2e1a",
+			FlashRed:   "#2e1a1a",
 			Star:       "#ffaa00",
 		},
 	}
