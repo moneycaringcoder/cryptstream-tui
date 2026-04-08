@@ -292,11 +292,3 @@ func (c *CryptoView) formatLiqCell(s Styles, l liquidation.Liq, colW int) string
 	}
 	return sym + " " + side + " " + val + strings.Repeat(" ", gap)
 }
-
-// padLeftPlain pads a plain string to the left with spaces.
-func padLeftPlain(s string, width int) string {
-	if len(s) >= width {
-		return s
-	}
-	return strings.Repeat(" ", width-len(s)) + s
-}
