@@ -1,11 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	tuikit "github.com/moneycaringcoder/tuikit-go"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 )
 
 // View renders the full TUI frame as a string.
@@ -23,78 +24,120 @@ func (c *CryptoView) View() string {
 
 // renderTable renders the main table content using the tuikit.Table component.
 func (c *CryptoView) renderTable(tableW int) string {
-	s := c.styles
 	var sb strings.Builder
 
-	// Table component handles header, rows, cursor, scroll
-	tableH := c.height - c.newsHeight()
+	header := c.renderHeader(tableW)
+	sb.WriteString(header)
+	sb.WriteByte('\n')
+
+	tableH := c.height - 2 // reserve 2 lines for header
 	c.table.SetSize(tableW, tableH)
 	c.table.SetFocused(c.focused)
 	sb.WriteString(c.table.View())
 
-	// News band sits between table and footer
-	newsH := c.newsHeight()
-	if newsH > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(c.renderNewsBand(s, tableW))
-		sb.WriteString("\n")
-		sb.WriteString(s.Sep.Render(strings.Repeat("─", tableW)))
-	}
-
 	return sb.String()
 }
 
-// renderNewsBand renders the news ticker band.
-func (c *CryptoView) renderNewsBand(s Styles, w int) string {
-	articles := c.newsArticles
-	if len(articles) == 0 {
-		return ""
+// renderHeader renders the 2-line header above the table.
+func (c *CryptoView) renderHeader(w int) string {
+	s := c.styles
+
+	// Line 1: title + connection dot + BTC price right-aligned
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ffffff"))
+	title := titleStyle.Render("cryptstream")
+
+	dot := s.DotConnected.Render("●")
+	if !c.connected {
+		dot = s.DotReconnecting.Render("●")
 	}
 
-	lines := make([]string, 0, 6)
-	lines = append(lines, s.Sep.Render(strings.Repeat("─", w)))
-
-	newsLines := 5
-	agoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
-	srcStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Bold(true)
-	dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#cccccc"))
-	flashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffaa00")).Background(lipgloss.Color("#2a2000"))
-
-	for i := 0; i < newsLines; i++ {
-		if i >= len(articles) {
-			lines = append(lines, "")
-			continue
-		}
-		a := articles[i]
-
-		ago := tuikit.RelativeTime(a.Time, time.Now())
-		agoPad := padLeft(ago, 7)
-		src := a.Source
-		dot := " · "
-
-		usedPlain := 1 + 7 + 1 + len(src) + len(dot)
-		remaining := w - usedPlain - 1
-		if remaining < 0 {
-			remaining = 0
-		}
-		title := a.Title
-		titleRunes := []rune(title)
-		if len(titleRunes) > remaining && remaining > 1 {
-			title = string(titleRunes[:remaining-1]) + "…"
-		} else if len(titleRunes) > remaining {
-			title = string(titleRunes[:remaining])
-		}
-		title = padRight(title, remaining)
-
-		if i == 0 && c.newsFlash > 0 {
-			plainLine := " " + agoPad + " " + src + dot + title + " "
-			lines = append(lines, flashStyle.Render(plainLine))
-		} else {
-			lines = append(lines, " "+agoStyle.Render(agoPad)+" "+srcStyle.Render(src)+dotStyle.Render(dot)+titleStyle.Render(title)+" ")
-		}
+	btcStr := ""
+	if btcPrice := c.BtcPrice(); btcPrice > 0 {
+		btcStr = "BTC " + ticker.FormatPrice(btcPrice)
 	}
 
-	return strings.Join(lines, "\n")
+	// right side: dot + btc price
+	rightPlain := " ● " + btcStr
+	rightStyled := dot + " " + lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Render(btcStr)
+
+	leftWidth := lipgloss.Width(title)
+	rightWidth := len(rightPlain)
+	gap := w - leftWidth - rightWidth
+	if gap < 1 {
+		gap = 1
+	}
+	line1 := title + strings.Repeat(" ", gap) + rightStyled
+
+	// Line 2: dim stats — pair count, filter, sort
+	filterLabel := "all"
+	switch c.filterMode {
+	case FilterGainers:
+		filterLabel = "gainers"
+	case FilterLosers:
+		filterLabel = "losers"
+	}
+
+	sortLabel := "vol"
+	switch c.sortCol {
+	case SortPrice:
+		sortLabel = "price"
+	case SortChange:
+		sortLabel = "change"
+	case SortSymbol:
+		sortLabel = "symbol"
+	case SortCorrelation:
+		sortLabel = "βbtc"
+	}
+	if c.sortAsc {
+		sortLabel += " ↑"
+	} else {
+		sortLabel += " ↓"
+	}
+
+	statsStr := fmt.Sprintf("%d pairs  filter:%s  sort:%s", len(c.tickers), filterLabel, sortLabel)
+	dimStyle := lipgloss.NewStyle().Foreground(s.ColorDim)
+	line2 := dimStyle.Render(statsStr)
+
+	return line1 + "\n" + line2
 }
 
+// renderDetailBar renders a compact 3-line inline detail for the selected coin.
+func (c *CryptoView) renderDetailBar(t ticker.Ticker, w int) string {
+	s := c.styles
+	theme := tuikit.DefaultTheme()
+
+	divider := tuikit.Divider(w, theme)
+
+	chgStyle := s.Positive
+	if t.PriceChangePercent < 0 {
+		chgStyle = s.Negative
+	}
+
+	line1 := fmt.Sprintf(" %s  %s  %s  %s",
+		tuikit.Badge(t.DisplaySymbol(), lipgloss.Color("#ffffff"), true),
+		tuikit.Badge(ticker.FormatPrice(t.LastPrice), lipgloss.Color("#ffffff"), false),
+		chgStyle.Bold(true).Render(fmt.Sprintf("%+.2f%%", t.PriceChangePercent)),
+		lipgloss.NewStyle().Foreground(s.ColorDim).Render("vol "+ticker.FormatVolume(t.QuoteVolume)),
+	)
+
+	// Line 2: supplementary info
+	dim := lipgloss.NewStyle().Foreground(s.ColorDim)
+	var parts []string
+	parts = append(parts, dim.Render(fmt.Sprintf("H %s  L %s", ticker.FormatPrice(t.HighPrice), ticker.FormatPrice(t.LowPrice))))
+	if fr := c.fundingRates[t.Symbol]; fr.Rate != 0 {
+		frStyle := s.Positive
+		if fr.Rate > 0 {
+			frStyle = s.Negative
+		}
+		parts = append(parts, dim.Render("fund ")+frStyle.Render(fmt.Sprintf("%+.3f%%", fr.Rate)))
+	}
+	if t.VolumeSpiking {
+		parts = append(parts, s.VolSpike.Render(fmt.Sprintf("%.1fx vol", t.VolumeSpikeRatio)))
+	}
+	if corr, ok := c.correlations[t.Symbol]; ok {
+		parts = append(parts, dim.Render(fmt.Sprintf("βBTC %.2f", corr)))
+	}
+	line2 := " " + strings.Join(parts, "  ")
+
+	return divider + "\n" + line1 + "\n" + line2
+}
