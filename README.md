@@ -42,6 +42,8 @@ go install github.com/moneycaringcoder/cryptstream-tui/cmd/cryptstream@latest
 
 Requires Go 1.24+. The binary is installed to `$GOPATH/bin` (usually `~/go/bin`).
 
+> **Note:** `go install` builds from source and does not embed version info. For automatic update checks to work correctly, use one of the other install methods or download a pre-built binary.
+
 ### Pre-built binaries
 
 Download the latest release for your platform from [Releases](https://github.com/moneycaringcoder/cryptstream-tui/releases). Extract and place the binary somewhere on your `PATH`.
