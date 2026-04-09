@@ -14,6 +14,7 @@ import (
 	"github.com/moneycaringcoder/cryptstream-tui/internal/liquidation"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ticker"
 	"github.com/moneycaringcoder/cryptstream-tui/internal/ui"
+	"github.com/moneycaringcoder/cryptstream-tui/internal/updatewire"
 )
 
 var version = "dev"
@@ -97,13 +98,7 @@ func main() {
 		tuikit.WithStatusBar(statusLeft, statusRight),
 		tuikit.WithTickInterval(100*time.Millisecond),
 		tuikit.WithMouseSupport(),
-		tuikit.WithAutoUpdate(tuikit.UpdateConfig{
-			Owner:      "moneycaringcoder",
-			Repo:       "cryptstream-tui",
-			BinaryName: "cryptstream",
-			Version:    version,
-			Mode:       tuikit.UpdateNotify,
-		}),
+		tuikit.WithAutoUpdate(updatewire.New(version)),
 	)
 
 	// Ticker stream
